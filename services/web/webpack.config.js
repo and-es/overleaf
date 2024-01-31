@@ -9,6 +9,10 @@ const {
 } = require('./webpack-plugins/lezer-grammar-compiler')
 
 const PackageVersions = require('./app/src/infrastructure/PackageVersions')
+const invalidateBabelCacheIfNeeded = require('./frontend/macros/invalidate-babel-cache-if-needed')
+
+// Make sure that babel-macros are re-evaluated after changing the modules config
+invalidateBabelCacheIfNeeded()
 
 // Generate a hash of entry points, including modules
 const entryPoints = {
@@ -119,7 +123,7 @@ module.exports = {
         test: /\.([jt]sx?|[cm]js)$/,
         // Only compile application files and specific dependencies
         // (other npm and vendored dependencies must be in ES5 already)
-        exclude: [/node_modules\/(?!(react-dnd|chart\.js)\/)/, vendorDir],
+        exclude: [/node_modules\/(?!(react-dnd|chart\.js|@uppy)\/)/, vendorDir],
         use: [
           {
             loader: 'babel-loader',

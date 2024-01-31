@@ -76,39 +76,26 @@ async function plansPage(req, res) {
       geoPricingINRTestVariant === 'inr'
         ? 'geo-banners-inr-2'
         : 'geo-banners-inr-1'
-    try {
-      const geoBannerAssignment = await SplitTestHandler.promises.getAssignment(
-        req,
-        res,
-        inrGeoBannerSplitTestName
-      )
-      inrGeoBannerVariant = geoBannerAssignment.variant
-      if (inrGeoBannerVariant !== 'default') {
-        showInrGeoBanner = true
-      }
-    } catch (error) {
-      logger.error(
-        { err: error },
-        `Failed to get INR geo banner lookup or assignment (${inrGeoBannerSplitTestName})`
-      )
+    const geoBannerAssignment = await SplitTestHandler.promises.getAssignment(
+      req,
+      res,
+      inrGeoBannerSplitTestName
+    )
+    inrGeoBannerVariant = geoBannerAssignment.variant
+    if (inrGeoBannerVariant !== 'default') {
+      showInrGeoBanner = true
     }
   }
 
   // annual plans with the free trial option split test - nudge variant
-  let annualTrialsAssignment = { variant: 'default' }
+  const annualTrialsAssignment = await SplitTestHandler.promises.getAssignment(
+    req,
+    res,
+    'annual-trials'
+  )
 
-  try {
-    annualTrialsAssignment = await SplitTestHandler.promises.getAssignment(
-      req,
-      res,
-      'annual-trials'
-    )
-  } catch (error) {
-    logger.error(
-      { err: error },
-      'failed to get "annualTrialsAssignment" split test assignment'
-    )
-  }
+  const websiteRedesignVariant =
+    res.locals.splitTestVariants?.['website-redesign']
 
   const plansPageViewSegmentation = {
     currency: recommendedCurrency,
@@ -122,6 +109,7 @@ async function plansPage(req, res) {
       ? 'latam'
       : 'default',
     'annual-trials': annualTrialsAssignment.variant,
+    'website-redesign': websiteRedesignVariant,
   }
   if (inrGeoBannerSplitTestName) {
     plansPageViewSegmentation[inrGeoBannerSplitTestName] = inrGeoBannerVariant
@@ -132,24 +120,6 @@ async function plansPage(req, res) {
     'plans-page-view',
     plansPageViewSegmentation
   )
-
-  let showNewCompileTimeoutVariant = false
-  const compileAssignment = await SplitTestHandler.promises.getAssignment(
-    req,
-    res,
-    'compile-backend-class-n2d'
-  )
-  if (compileAssignment?.variant === 'n2d') {
-    const timeoutAssignment = await SplitTestHandler.promises.getAssignment(
-      req,
-      res,
-      'compile-timeout-20s'
-    )
-    if (timeoutAssignment?.variant === '20s') {
-      // there may be anonymous/logged out users in this group
-      showNewCompileTimeoutVariant = true
-    }
-  }
 
   res.render('subscriptions/plans', {
     title: 'plans_and_pricing',
@@ -168,7 +138,6 @@ async function plansPage(req, res) {
       SubscriptionHelper.generateInitialLocalizedGroupPrice(currency),
     showInrGeoBanner,
     annualTrialsAssignment: annualTrialsAssignment?.variant,
-    showNewCompileTimeoutVariant,
   })
 }
 
@@ -300,40 +269,20 @@ async function interstitialPaymentPage(req, res) {
         geoPricingINRTestVariant === 'inr'
           ? 'geo-banners-inr-2'
           : 'geo-banners-inr-1'
-      try {
-        const geoBannerAssignment =
-          await SplitTestHandler.promises.getAssignment(
-            req,
-            res,
-            inrGeoBannerSplitTestName
-          )
-        inrGeoBannerVariant = geoBannerAssignment.variant
-        if (inrGeoBannerVariant !== 'default') {
-          showInrGeoBanner = true
-        }
-      } catch (error) {
-        logger.error(
-          { err: error },
-          `Failed to get INR geo banner lookup or assignment (${inrGeoBannerSplitTestName})`
-        )
+      const geoBannerAssignment = await SplitTestHandler.promises.getAssignment(
+        req,
+        res,
+        inrGeoBannerSplitTestName
+      )
+      inrGeoBannerVariant = geoBannerAssignment.variant
+      if (inrGeoBannerVariant !== 'default') {
+        showInrGeoBanner = true
       }
     }
 
     // annual plans with the free trial option split test - nudge variant
-    let annualTrialsAssignment = { variant: 'default' }
-
-    try {
-      annualTrialsAssignment = await SplitTestHandler.promises.getAssignment(
-        req,
-        res,
-        'annual-trials'
-      )
-    } catch (error) {
-      logger.error(
-        { err: error },
-        'failed to get "annualTrialsAssignment" split test assignment'
-      )
-    }
+    const annualTrialsAssignment =
+      await SplitTestHandler.promises.getAssignment(req, res, 'annual-trials')
 
     const paywallPlansPageViewSegmentation = {
       currency: recommendedCurrency,
@@ -371,24 +320,6 @@ async function interstitialPaymentPage(req, res) {
         templatePath = 'subscriptions/interstitial-payment'
     }
 
-    let showNewCompileTimeoutVariant = false
-    const compileAssignment = await SplitTestHandler.promises.getAssignment(
-      req,
-      res,
-      'compile-backend-class-n2d'
-    )
-    if (compileAssignment?.variant === 'n2d') {
-      const timeoutAssignment = await SplitTestHandler.promises.getAssignment(
-        req,
-        res,
-        'compile-timeout-20s'
-      )
-      if (timeoutAssignment?.variant === '20s') {
-        // there may be anonymous/logged out users in this group
-        showNewCompileTimeoutVariant = true
-      }
-    }
-
     res.render(templatePath, {
       title: 'subscribe',
       itm_content: req.query?.itm_content,
@@ -398,7 +329,6 @@ async function interstitialPaymentPage(req, res) {
       interstitialPaymentConfig,
       showSkipLink,
       showInrGeoBanner,
-      showNewCompileTimeoutVariant,
     })
   }
 }
@@ -714,36 +644,21 @@ async function _getRecommendedCurrency(req, res) {
   }
   const currencyLookup = await GeoIpLookup.promises.getCurrencyCode(ip)
   const countryCode = currencyLookup.countryCode
-  let assignmentINR, assignmentLATAM
   let recommendedCurrency = currencyLookup.currencyCode
   // for #12703
-  try {
-    // Split test is kept active, but all users geolocated in India can
-    // now use the INR currency (See #13507)
-    assignmentINR = await SplitTestHandler.promises.getAssignment(
-      req,
-      res,
-      'geo-pricing-inr'
-    )
-  } catch (error) {
-    logger.error(
-      { err: error },
-      'Failed to get assignment for geo-pricing-inr test'
-    )
-  }
+  // Split test is kept active, but all users geolocated in India can
+  // now use the INR currency (See #13507)
+  const assignmentINR = await SplitTestHandler.promises.getAssignment(
+    req,
+    res,
+    'geo-pricing-inr'
+  )
   // for #13559
-  try {
-    assignmentLATAM = await SplitTestHandler.promises.getAssignment(
-      req,
-      res,
-      'geo-pricing-latam'
-    )
-  } catch (error) {
-    logger.error(
-      { err: error },
-      'Failed to get assignment for geo-pricing-latam test'
-    )
-  }
+  const assignmentLATAM = await SplitTestHandler.promises.getAssignment(
+    req,
+    res,
+    'geo-pricing-latam'
+  )
   if (
     ['BRL', 'MXN', 'COP', 'CLP', 'PEN'].includes(recommendedCurrency) &&
     assignmentLATAM?.variant !== 'latam'

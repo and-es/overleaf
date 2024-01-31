@@ -4,10 +4,10 @@ import { isEqual, cloneDeep } from 'lodash'
 import usePersistedState from '@/shared/hooks/use-persisted-state'
 import useScopeValue from '../../../../../shared/hooks/use-scope-value'
 import useSocketListener from '@/features/ide-react/hooks/use-socket-listener'
-import useAsync from '@/shared/hooks/use-async'
 import useAbortController from '@/shared/hooks/use-abort-controller'
 import useScopeEventEmitter from '@/shared/hooks/use-scope-event-emitter'
-import { sendMB } from '../../../../../infrastructure/event-tracking'
+import useLayoutToLeft from '@/features/ide-react/context/review-panel/hooks/useLayoutToLeft'
+import { sendMB } from '@/infrastructure/event-tracking'
 import {
   dispatchReviewPanelLayout as handleLayoutChange,
   UpdateType,
@@ -19,6 +19,10 @@ import { useIdeReactContext } from '@/features/ide-react/context/ide-react-conte
 import { useConnectionContext } from '@/features/ide-react/context/connection-context'
 import { usePermissionsContext } from '@/features/ide-react/context/permissions-context'
 import { useModalsContext } from '@/features/ide-react/context/modals-context'
+import {
+  EditorManager,
+  useEditorManagerContext,
+} from '@/features/ide-react/context/editor-manager-context'
 import { debugConsole } from '@/utils/debugging'
 import { useEditorContext } from '@/shared/context/editor-context'
 import { deleteJSON, getJSON, postJSON } from '@/infrastructure/fetch-json'
@@ -56,7 +60,6 @@ import {
   ReviewPanelCommentThreadMessageApi,
   ReviewPanelCommentThreadsApi,
 } from '../../../../../../../types/review-panel/api'
-import { Document } from '@/features/ide-react/editor/document'
 import { DateString } from '../../../../../../../types/helpers/date'
 
 const dispatchReviewPanelEvent = (type: string, payload?: any) => {
@@ -119,7 +122,8 @@ const formatComment = (
 
 function useReviewPanelState(): ReviewPanelStateReactIde {
   const { t } = useTranslation()
-  const { reviewPanelOpen, setReviewPanelOpen } = useLayoutContext()
+  const { reviewPanelOpen, setReviewPanelOpen, setMiniReviewPanelVisible } =
+    useLayoutContext()
   const { projectId } = useIdeReactContext()
   const project = useProjectContext()
   const user = useUserContext()
@@ -128,15 +132,22 @@ function useReviewPanelState(): ReviewPanelStateReactIde {
     features: { trackChangesVisible, trackChanges },
   } = project
   const { isRestrictedTokenMember } = useEditorContext()
+  const {
+    openDocId,
+    currentDocument,
+    currentDocumentId,
+    wantTrackChanges,
+    setWantTrackChanges,
+  } = useEditorManagerContext() as MergeAndOverride<
+    EditorManager,
+    { currentDocumentId: DocId }
+  >
   // TODO permissions to be removed from the review panel context. It currently acts just as a proxy.
   const permissions = usePermissionsContext()
   const { showGenericMessageModal } = useModalsContext()
   const addCommentEmitter = useScopeEventEmitter('comment:start_adding')
 
-  // TODO `currentDocument` and `currentDocumentId` should be get from `useEditorManagerContext()` but that makes tests fail
-  const [currentDocument] = useScopeValue<Document>('editor.sharejs_doc')
-  const [currentDocumentId] = useScopeValue<DocId>('editor.open_doc_id')
-
+  const layoutToLeft = useLayoutToLeft('.ide-react-editor-panel')
   const [subView, setSubView] =
     useState<ReviewPanel.Value<'subView'>>('cur_file')
   const [isOverviewLoading, setIsOverviewLoading] =
@@ -163,10 +174,6 @@ function useReviewPanelState(): ReviewPanelStateReactIde {
     ReviewPanel.Value<'resolvedComments'>
   >({})
 
-  const [wantTrackChanges, setWantTrackChanges] = useScopeValue<
-    ReviewPanel.Value<'wantTrackChanges'>
-  >('editor.wantTrackChanges')
-  const openDocId = currentDocumentId
   const [shouldCollapse, setShouldCollapse] =
     useState<ReviewPanel.Value<'shouldCollapse'>>(true)
   const [lineHeight, setLineHeight] =
@@ -189,26 +196,25 @@ function useReviewPanelState(): ReviewPanelStateReactIde {
     Record<ThreadId, boolean>
   >({})
 
-  const {
-    isLoading: loadingThreads,
-    reset,
-    runAsync: runAsyncThreads,
-  } = useAsync<ReviewPanelCommentThreadsApi>()
+  const [loadingThreads, setLoadingThreads] =
+    useScopeValue<boolean>('loadingThreads')
+
   const loadThreadsController = useAbortController()
-  const loadThreadsExecuted = useRef(false)
+  const threadsLoadedOnceRef = useRef(false)
+  const loadingThreadsInProgressRef = useRef(false)
   const ensureThreadsAreLoaded = useCallback(() => {
-    if (loadThreadsExecuted.current) {
+    if (threadsLoadedOnceRef.current) {
       // We get any updates in real time so only need to load them once.
       return
     }
-    loadThreadsExecuted.current = true
+    threadsLoadedOnceRef.current = true
+    loadingThreadsInProgressRef.current = true
 
-    return runAsyncThreads(
-      getJSON(`/project/${projectId}/threads`, {
-        signal: loadThreadsController.signal,
-      })
-    )
+    return getJSON(`/project/${projectId}/threads`, {
+      signal: loadThreadsController.signal,
+    })
       .then(threads => {
+        setLoadingThreads(false)
         const tempResolvedThreadIds: typeof resolvedThreadIds = {}
         const threadsEntries = Object.entries(threads) as [
           [
@@ -240,7 +246,10 @@ function useReviewPanelState(): ReviewPanelStateReactIde {
         }
       })
       .catch(debugConsole.error)
-  }, [loadThreadsController.signal, projectId, runAsyncThreads])
+      .finally(() => {
+        loadingThreadsInProgressRef.current = false
+      })
+  }, [loadThreadsController.signal, projectId, setLoadingThreads])
 
   const rangesTrackers = useRef<Record<DocId, RangesTracker>>({})
   const refreshingRangeUsers = useRef(false)
@@ -327,21 +336,6 @@ function useReviewPanelState(): ReviewPanelStateReactIde {
   const updateEntries = useCallback(
     async (docId: DocId) => {
       const rangesTracker = getChangeTracker(docId)
-      let localResolvedThreadIds = resolvedThreadIds
-
-      if (!isRestrictedTokenMember) {
-        if (rangesTracker.comments.length > 0) {
-          const threadsLoadResult = await ensureThreadsAreLoaded()
-          if (typeof threadsLoadResult === 'object') {
-            localResolvedThreadIds = threadsLoadResult.resolvedThreadIds
-          }
-        } else if (loadingThreads) {
-          // ensure that tracked changes are highlighted even if no comments are loaded
-          reset()
-          dispatchReviewPanelEvent('loaded_threads')
-        }
-      }
-
       const docEntries = cloneDeep(getDocEntries(docId))
       const docResolvedComments = cloneDeep(getDocResolvedComments(docId))
       // Assume we'll delete everything until we see it, then we'll remove it from this object
@@ -424,32 +418,41 @@ function useReviewPanelState(): ReviewPanelStateReactIde {
         }
       }
 
-      for (const comment of rangesTracker.comments) {
-        deleteChanges.delete(comment.id)
+      let localResolvedThreadIds = resolvedThreadIds
 
-        const newEntry: Partial<ReviewPanelCommentEntry> = {
-          type: 'comment',
-          thread_id: comment.op.t,
-          entry_ids: [comment.id],
-          content: comment.op.c,
-          offset: comment.op.p,
+      if (!isRestrictedTokenMember) {
+        if (rangesTracker.comments.length > 0) {
+          const threadsLoadResult = await ensureThreadsAreLoaded()
+          if (threadsLoadResult?.resolvedThreadIds) {
+            localResolvedThreadIds = threadsLoadResult.resolvedThreadIds
+          }
+        } else if (loadingThreads) {
+          // ensure that tracked changes are highlighted even if no comments are loaded
+          setLoadingThreads(false)
+          dispatchReviewPanelEvent('loaded_threads')
         }
+      }
 
-        let newComment: any
-        if (localResolvedThreadIds[comment.op.t]) {
-          docResolvedComments[comment.id] ??= {} as ReviewPanelCommentEntry
-          newComment = docResolvedComments[comment.id]
-          delete docEntries[comment.id]
-        } else {
-          docEntries[comment.id] ??= {} as ReviewPanelEntry
-          newComment = docEntries[comment.id]
-          delete docResolvedComments[comment.id]
-        }
+      if (!loadingThreadsInProgressRef.current) {
+        for (const comment of rangesTracker.comments) {
+          deleteChanges.delete(comment.id)
 
-        for (const [key, value] of Object.entries(newEntry) as Entries<
-          typeof newEntry
-        >) {
-          newComment[key] = value
+          let newComment: any
+          if (localResolvedThreadIds[comment.op.t]) {
+            docResolvedComments[comment.id] ??= {} as ReviewPanelCommentEntry
+            newComment = docResolvedComments[comment.id]
+            delete docEntries[comment.id]
+          } else {
+            docEntries[comment.id] ??= {} as ReviewPanelEntry
+            newComment = docEntries[comment.id]
+            delete docResolvedComments[comment.id]
+          }
+
+          newComment.type = 'comment'
+          newComment.thread_id = comment.op.t
+          newComment.entry_ids = [comment.id]
+          newComment.content = comment.op.c
+          newComment.offset = comment.op.p
         }
       }
 
@@ -481,7 +484,7 @@ function useReviewPanelState(): ReviewPanelStateReactIde {
       users,
       ensureThreadsAreLoaded,
       loadingThreads,
-      reset,
+      setLoadingThreads,
     ]
   )
 
@@ -520,7 +523,8 @@ function useReviewPanelState(): ReviewPanelStateReactIde {
     if (!user) {
       return 'anonymous'
     }
-    if (project.owner === user.id) {
+    // FIXME: check this
+    if (project.owner._id === user.id) {
       return 'member'
     }
     for (const member of project.members as any[]) {
@@ -708,7 +712,7 @@ function useReviewPanelState(): ReviewPanelStateReactIde {
   )
 
   const applyTrackChangesStateToClient = useCallback(
-    (state: boolean | Record<UserId, boolean>) => {
+    (state: boolean | ReviewPanel.Value<'trackChangesState'>) => {
       if (typeof state === 'boolean') {
         setEveryoneTCState(state)
         setGuestsTCState(state)
@@ -725,13 +729,13 @@ function useReviewPanelState(): ReviewPanelStateReactIde {
           newTrackChangesState = setUserTCState(
             newTrackChangesState,
             member._id,
-            state[member._id] ?? false
+            !!state[member._id]
           )
         }
         newTrackChangesState = setUserTCState(
           newTrackChangesState,
           project.owner._id,
-          state[project.owner._id] ?? false
+          !!state[project.owner._id]
         )
         return newTrackChangesState
       }
@@ -747,7 +751,7 @@ function useReviewPanelState(): ReviewPanelStateReactIde {
   )
 
   const setGuestFeatureBasedOnProjectAccessLevel = (
-    projectPublicAccessLevel: PublicAccessLevel
+    projectPublicAccessLevel?: PublicAccessLevel
   ) => {
     setTrackChangesForGuestsAvailable(projectPublicAccessLevel === 'tokenBased')
   }
@@ -802,20 +806,19 @@ function useReviewPanelState(): ReviewPanelStateReactIde {
           project.owner
         )
       }
-      if (project.members) {
-        for (const member of project.members) {
-          if (member.privileges === 'readAndWrite') {
-            if (!trackChangesState[member._id]) {
-              // An added member will have track changes enabled if track changes is on for everyone
-              setUserTCState(
-                trackChangesState,
-                member._id,
-                trackChangesOnForEveryone,
-                true
-              )
-            }
-            tempFormattedProjectMembers[member._id] = formatUser(member)
+      const members = project.members ?? []
+      for (const member of members) {
+        if (member.privileges === 'readAndWrite') {
+          if (!trackChangesState[member._id]) {
+            // An added member will have track changes enabled if track changes is on for everyone
+            setUserTCState(
+              trackChangesState,
+              member._id,
+              trackChangesOnForEveryone,
+              true
+            )
           }
+          tempFormattedProjectMembers[member._id] = formatUser(member)
         }
       }
       return tempFormattedProjectMembers
@@ -834,8 +837,12 @@ function useReviewPanelState(): ReviewPanelStateReactIde {
     applyTrackChangesStateToClient
   )
 
-  const [gotoEntry] =
-    useScopeValue<ReviewPanel.UpdaterFn<'gotoEntry'>>('gotoEntry')
+  const gotoEntry = useCallback(
+    (docId: DocId, entryOffset: number) => {
+      openDocId(docId, { gotoOffset: entryOffset })
+    },
+    [openDocId]
+  )
 
   const view = reviewPanelOpen ? subView : 'mini'
 
@@ -1142,12 +1149,29 @@ function useReviewPanelState(): ReviewPanelStateReactIde {
     ]
   )
 
-  const [entryHover, setEntryHover] = useState(false)
   const [isAddingComment, setIsAddingComment] = useState(false)
   const [navHeight, setNavHeight] = useState(0)
   const [toolbarHeight, setToolbarHeight] = useState(0)
   const [layoutSuspended, setLayoutSuspended] = useState(false)
   const [unsavedComment, setUnsavedComment] = useState('')
+
+  useEffect(() => {
+    if (!trackChangesVisible) {
+      setReviewPanelOpen(false)
+    }
+  }, [trackChangesVisible, setReviewPanelOpen])
+
+  const hasEntries = useMemo(() => {
+    const docEntries = getDocEntries(currentDocumentId)
+    const permEntriesCount = Object.keys(docEntries).filter(key => {
+      return !['add-comment', 'bulk-actions'].includes(key)
+    }).length
+    return permEntriesCount > 0 && trackChangesVisible
+  }, [currentDocumentId, getDocEntries, trackChangesVisible])
+
+  useEffect(() => {
+    setMiniReviewPanelVisible(!reviewPanelOpen && !!hasEntries)
+  }, [reviewPanelOpen, hasEntries, setMiniReviewPanelVisible])
 
   // listen for events from the CodeMirror 6 track changes extension
   useEffect(() => {
@@ -1167,14 +1191,22 @@ function useReviewPanelState(): ReviewPanelStateReactIde {
     }
 
     const editorTrackChangesChanged = async () => {
-      const entries = await updateEntries(currentDocumentId)
+      const tempEntries = cloneDeep(await updateEntries(currentDocumentId))
+
+      // `tempEntries` would be mutated
       dispatchReviewPanelEvent('recalculate-screen-positions', {
-        entries,
+        entries: tempEntries,
         updateType: 'trackedChangesChange',
       })
-      // Ensure that watchers, such as the React-based review panel component,
-      // are informed of the changes to entries
+
+      // The state should be updated after dispatching the 'recalculate-screen-positions'
+      // event as `tempEntries` will be mutated
+      setEntries(prev => ({ ...prev, [currentDocumentId]: tempEntries }))
       handleLayoutChange()
+    }
+
+    const editorTrackChangesVisibilityChanged = () => {
+      handleLayoutChange({ async: true, animate: false })
     }
 
     const editorFocusChanged = (
@@ -1183,9 +1215,7 @@ function useReviewPanelState(): ReviewPanelStateReactIde {
       selection: boolean,
       updateType: UpdateType
     ) => {
-      let tempEntries = {
-        ...getDocEntries(currentDocumentId),
-      }
+      let tempEntries = cloneDeep(getDocEntries(currentDocumentId))
       // All selected changes will be added to this array.
       selectedEntryIds.current = []
       // Count of user-visible changes, i.e. an aggregated change will count as one.
@@ -1289,14 +1319,18 @@ function useReviewPanelState(): ReviewPanelStateReactIde {
           tempNVisibleSelectedChanges++
         }
       }
-      setEntries(prev => ({ ...prev, [currentDocumentId]: tempEntries }))
-      setNVisibleSelectedChanges(tempNVisibleSelectedChanges)
+
+      // `tempEntries` would be mutated
       dispatchReviewPanelEvent('recalculate-screen-positions', {
         entries: tempEntries,
         updateType,
       })
-      // Ensure that watchers, such as the React-based review panel component,
-      // are informed of the changes to entries
+
+      // The state should be updated after dispatching the 'recalculate-screen-positions'
+      // event as `tempEntries` will be mutated
+      setEntries(prev => ({ ...prev, [currentDocumentId]: tempEntries }))
+      setNVisibleSelectedChanges(tempNVisibleSelectedChanges)
+
       handleLayoutChange()
     }
 
@@ -1328,6 +1362,11 @@ function useReviewPanelState(): ReviewPanelStateReactIde {
           break
         }
 
+        case 'track-changes:visibility_changed': {
+          editorTrackChangesVisibilityChanged()
+          break
+        }
+
         case 'focus:changed': {
           const { from, to, empty, updateType } = payload
           editorFocusChanged(from, to, !empty, updateType)
@@ -1341,6 +1380,11 @@ function useReviewPanelState(): ReviewPanelStateReactIde {
 
         case 'toggle-track-changes': {
           toggleTrackChangesFromKbdShortcut()
+          break
+        }
+
+        case 'toggle-review-panel': {
+          toggleReviewPanel()
           break
         }
       }
@@ -1449,12 +1493,17 @@ function useReviewPanelState(): ReviewPanelStateReactIde {
     }
   }, [subView])
 
+  useEffect(() => {
+    if (Object.keys(users).length) {
+      handleLayoutChange({ async: true })
+    }
+  }, [users])
+
   const values = useMemo<ReviewPanelStateReactIde['values']>(
     () => ({
       collapsed,
       commentThreads,
       entries,
-      entryHover,
       isAddingComment,
       loadingThreads,
       nVisibleSelectedChanges,
@@ -1467,7 +1516,7 @@ function useReviewPanelState(): ReviewPanelStateReactIde {
       subView,
       wantTrackChanges,
       isOverviewLoading,
-      openDocId,
+      openDocId: currentDocumentId,
       lineHeight,
       trackChangesState,
       trackChangesOnForEveryone,
@@ -1476,12 +1525,12 @@ function useReviewPanelState(): ReviewPanelStateReactIde {
       formattedProjectMembers,
       layoutSuspended,
       unsavedComment,
+      layoutToLeft,
     }),
     [
       collapsed,
       commentThreads,
       entries,
-      entryHover,
       isAddingComment,
       loadingThreads,
       nVisibleSelectedChanges,
@@ -1494,7 +1543,7 @@ function useReviewPanelState(): ReviewPanelStateReactIde {
       subView,
       wantTrackChanges,
       isOverviewLoading,
-      openDocId,
+      currentDocumentId,
       lineHeight,
       trackChangesState,
       trackChangesOnForEveryone,
@@ -1503,6 +1552,7 @@ function useReviewPanelState(): ReviewPanelStateReactIde {
       formattedProjectMembers,
       layoutSuspended,
       unsavedComment,
+      layoutToLeft,
     ]
   )
 
@@ -1527,7 +1577,6 @@ function useReviewPanelState(): ReviewPanelStateReactIde {
       toggleTrackChangesForEveryone,
       toggleTrackChangesForUser,
       toggleTrackChangesForGuests,
-      setEntryHover,
       setCollapsed,
       setShouldCollapse,
       setIsAddingComment,
@@ -1556,7 +1605,6 @@ function useReviewPanelState(): ReviewPanelStateReactIde {
       toggleTrackChangesForUser,
       toggleTrackChangesForGuests,
       setCollapsed,
-      setEntryHover,
       setShouldCollapse,
       setIsAddingComment,
       setNavHeight,

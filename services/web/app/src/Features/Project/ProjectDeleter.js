@@ -17,7 +17,6 @@ const DocstoreManager = require('../Docstore/DocstoreManager')
 const EditorRealTimeController = require('../Editor/EditorRealTimeController')
 const HistoryManager = require('../History/HistoryManager')
 const FilestoreHandler = require('../FileStore/FileStoreHandler')
-const TpdsUpdateSender = require('../ThirdPartyDataStore/TpdsUpdateSender')
 const ChatApiHandler = require('../Chat/ChatApiHandler')
 const moment = require('moment')
 const { promiseMapWithLimit } = require('@overleaf/promise-utils')
@@ -128,7 +127,7 @@ async function archiveProject(projectId, userId) {
 
     await Project.updateOne(
       { _id: projectId },
-      { $set: { archived }, $pull: { trashed: ObjectId(userId) } }
+      { $set: { archived }, $pull: { trashed: new ObjectId(userId) } }
     )
   } catch (err) {
     logger.warn({ err }, 'problem archiving project')
@@ -172,7 +171,7 @@ async function trashProject(projectId, userId) {
     await Project.updateOne(
       { _id: projectId },
       {
-        $addToSet: { trashed: ObjectId(userId) },
+        $addToSet: { trashed: new ObjectId(userId) },
         $set: { archived },
       }
     )
@@ -191,7 +190,7 @@ async function untrashProject(projectId, userId) {
 
     await Project.updateOne(
       { _id: projectId },
-      { $pull: { trashed: ObjectId(userId) } }
+      { $pull: { trashed: new ObjectId(userId) } }
     )
   } catch (err) {
     logger.warn({ err }, 'problem untrashing project')
@@ -280,7 +279,7 @@ async function deleteProject(projectId, options = {}) {
 }
 
 async function undeleteProject(projectId, options = {}) {
-  projectId = ObjectId(projectId)
+  projectId = new ObjectId(projectId)
   const deletedProject = await DeletedProject.findOne({
     'deleterData.deletedProjectId': projectId,
   }).exec()
@@ -382,9 +381,6 @@ async function expireDeletedProject(projectId) {
         historyId
       ),
       FilestoreHandler.promises.deleteProject(deletedProject.project._id),
-      TpdsUpdateSender.promises.deleteProject({
-        projectId: deletedProject.project._id,
-      }),
       ChatApiHandler.promises.destroyProject(deletedProject.project._id),
       hardDeleteDeletedFiles(deletedProject.project._id),
       ProjectAuditLogEntry.deleteMany({ projectId }),

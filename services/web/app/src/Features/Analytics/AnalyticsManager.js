@@ -7,7 +7,6 @@ const crypto = require('crypto')
 const _ = require('lodash')
 const { expressify } = require('@overleaf/promise-utils')
 const logger = require('@overleaf/logger')
-const { getAnalyticsIdFromMongoUser } = require('./AnalyticsHelper')
 
 const analyticsEventsQueue = Queues.getQueue('analytics-events')
 const analyticsEditingSessionsQueue = Queues.getQueue(
@@ -66,14 +65,6 @@ function recordEventForSession(session, event, segmentation) {
   if (_isAnalyticsDisabled() || _isSmokeTestUser(userId)) {
     return
   }
-  logger.debug({
-    analyticsId,
-    userId,
-    event,
-    segmentation,
-    isLoggedIn: !!userId,
-    createdAt: new Date(),
-  })
   _recordEvent({
     analyticsId,
     userId,
@@ -93,7 +84,7 @@ async function setUserPropertyForUser(userId, propertyName, propertyValue) {
 
   const analyticsId = await UserAnalyticsIdCache.get(userId)
   if (analyticsId) {
-    _setUserProperty({ analyticsId, propertyName, propertyValue })
+    await _setUserProperty({ analyticsId, propertyName, propertyValue })
   }
 }
 
@@ -108,7 +99,7 @@ async function setUserPropertyForAnalyticsId(
 
   _checkPropertyValue(propertyValue)
 
-  _setUserProperty({ analyticsId, propertyName, propertyValue })
+  await _setUserProperty({ analyticsId, propertyName, propertyValue })
 }
 
 async function setUserPropertyForSession(session, propertyName, propertyValue) {
@@ -120,7 +111,7 @@ async function setUserPropertyForSession(session, propertyName, propertyValue) {
   _checkPropertyValue(propertyValue)
 
   if (analyticsId) {
-    _setUserProperty({ analyticsId, propertyName, propertyValue })
+    await _setUserProperty({ analyticsId, propertyName, propertyValue })
   }
 }
 
@@ -182,6 +173,17 @@ function _recordEvent(
     )
     return
   }
+  logger.debug(
+    {
+      analyticsId,
+      userId,
+      event,
+      segmentation,
+      isLoggedIn: !!userId,
+      createdAt: new Date(),
+    },
+    'queueing analytics event'
+  )
   Metrics.analyticsQueue.inc({ status: 'adding', event_type: 'event' })
   analyticsEventsQueue
     .add(
@@ -204,7 +206,7 @@ function _recordEvent(
     })
 }
 
-function _setUserProperty({ analyticsId, propertyName, propertyValue }) {
+async function _setUserProperty({ analyticsId, propertyName, propertyValue }) {
   if (!_isAttributeValid(propertyName)) {
     logger.info(
       { analyticsId, propertyName, propertyValue },
@@ -223,7 +225,7 @@ function _setUserProperty({ analyticsId, propertyName, propertyValue }) {
     status: 'adding',
     event_type: 'user-property',
   })
-  analyticsUserPropertiesQueue
+  await analyticsUserPropertiesQueue
     .add('user-property', {
       analyticsId,
       propertyName,
@@ -305,12 +307,11 @@ async function analyticsIdMiddleware(req, res, next) {
   const sessionUser = SessionManager.getSessionUser(session)
 
   if (sessionUser) {
-    session.analyticsId = getAnalyticsIdFromMongoUser(sessionUser)
+    session.analyticsId = await UserAnalyticsIdCache.get(sessionUser._id)
   } else if (!session.analyticsId) {
     // generate an `analyticsId` if needed
     session.analyticsId = crypto.randomUUID()
   }
-
   next()
 }
 

@@ -18,7 +18,6 @@ export interface ReviewPanelState {
     collapsed: Record<DocId, boolean>
     commentThreads: ReviewPanelCommentThreads
     entries: ReviewPanelEntries
-    entryHover: boolean
     isAddingComment: boolean
     loadingThreads: boolean
     nVisibleSelectedChanges: number
@@ -48,6 +47,7 @@ export interface ReviewPanelState {
     >
     layoutSuspended: boolean
     unsavedComment: string
+    layoutToLeft: boolean
   }
   updaterFns: {
     handleSetSubview: (subView: SubView) => void
@@ -77,7 +77,6 @@ export interface ReviewPanelState {
       void | ReviewPanelDocEntries[]
     >
     submitNewComment: (content: string) => void
-    setEntryHover: React.Dispatch<React.SetStateAction<Value<'entryHover'>>>
     setIsAddingComment: React.Dispatch<
       React.SetStateAction<Value<'isAddingComment'>>
     >

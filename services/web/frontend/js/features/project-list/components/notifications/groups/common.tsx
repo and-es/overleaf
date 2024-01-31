@@ -38,6 +38,10 @@ function CommonNotification({ notification }: CommonNotificationProps) {
   const { t } = useTranslation()
   const { samlInitPath } = getMeta('ol-ExposedSettings') as ExposedSettings
   const user = getMeta('ol-user', []) as Pick<User, 'features'>
+  const newNotificationStyle = getMeta(
+    'ol-newNotificationStyle',
+    false
+  ) as boolean
   const { isLoading, isSuccess, error, runAsync } = useAsync<
     never,
     FetchError
@@ -58,6 +62,11 @@ function CommonNotification({ notification }: CommonNotificationProps) {
   }
 
   const { _id: id, templateKey, html } = notification
+
+  // Temporarily remove IEEE Collabratec notification
+  if (templateKey === 'notification_ieee_collabratec_retirement') {
+    return null
+  }
 
   return (
     <>
@@ -90,16 +99,21 @@ function CommonNotification({ notification }: CommonNotificationProps) {
           action={
             accepted ? (
               <Button
-                bsStyle="info"
+                bsStyle={newNotificationStyle ? null : 'info'}
                 bsSize="sm"
-                className="pull-right"
+                className={
+                  newNotificationStyle ? 'btn-secondary' : 'pull-right'
+                }
                 href={`/project/${notification.messageOpts.projectId}`}
               >
                 {t('open_project')}
               </Button>
             ) : (
               <Button
-                bsStyle="info"
+                bsStyle={newNotificationStyle ? null : 'info'}
+                className={
+                  newNotificationStyle ? 'btn-secondary' : 'pull-right'
+                }
                 bsSize="sm"
                 disabled={isLoading}
                 onClick={() => handleAcceptInvite(notification)}
@@ -128,9 +142,9 @@ function CommonNotification({ notification }: CommonNotificationProps) {
           }
           action={
             <Button
-              bsStyle="info"
+              bsStyle={newNotificationStyle ? null : 'info'}
               bsSize="sm"
-              className="pull-right"
+              className={newNotificationStyle ? 'btn-secondary' : 'pull-right'}
               href="https://www.overleaf.com/events/wfh2020"
             >
               View
@@ -189,9 +203,9 @@ function CommonNotification({ notification }: CommonNotificationProps) {
           }
           action={
             <Button
-              bsStyle="info"
+              bsStyle={newNotificationStyle ? null : 'info'}
               bsSize="sm"
-              className="pull-right"
+              className={newNotificationStyle ? 'btn-secondary' : 'pull-right'}
               href={
                 notification.messageOpts.ssoEnabled
                   ? `${samlInitPath}?university_id=${notification.messageOpts.institutionId}&auto=/project`
@@ -219,9 +233,9 @@ function CommonNotification({ notification }: CommonNotificationProps) {
           }
           action={
             <Button
-              bsStyle="danger"
+              bsStyle={newNotificationStyle ? null : 'danger'}
               bsSize="sm"
-              className="pull-right"
+              className={newNotificationStyle ? 'btn-secondary' : 'pull-right'}
               href="/user/settings"
             >
               Account Settings
@@ -284,6 +298,22 @@ function CommonNotification({ notification }: CommonNotificationProps) {
         />
       ) : templateKey === 'notification_group_invitation' ? (
         <GroupInvitationNotification notification={notification} />
+      ) : templateKey === 'notification_ieee_collabratec_retirement' ? (
+        <Notification
+          bsStyle="warning"
+          onDismiss={() => id && handleDismiss(id)}
+          body={
+            <Trans
+              i18nKey="notification_ieee_collabratec_retirement_message"
+              components={[
+                // eslint-disable-next-line jsx-a11y/anchor-has-content,react/jsx-key
+                <a href="mailto:authors@ieee.org" />,
+                // eslint-disable-next-line jsx-a11y/anchor-has-content,react/jsx-key
+                <a href="/user/subscription" />,
+              ]}
+            />
+          }
+        />
       ) : templateKey === 'notification_personal_and_group_subscriptions' ? (
         <Notification
           bsStyle="warning"

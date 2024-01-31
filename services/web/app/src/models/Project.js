@@ -1,9 +1,9 @@
 const mongoose = require('../infrastructure/Mongoose')
-const _ = require('underscore')
+const _ = require('lodash')
 const { FolderSchema } = require('./Folder')
 const Errors = require('../Features/Errors/Errors')
 
-const concreteObjectId = mongoose.Types.ObjectId
+const ConcreteObjectId = mongoose.Types.ObjectId
 const { Schema } = mongoose
 const { ObjectId } = Schema
 
@@ -119,7 +119,8 @@ ProjectSchema.statics.getProject = function (projectOrId, fields, callback) {
     callback(null, projectOrId)
   } else {
     try {
-      concreteObjectId(projectOrId.toString())
+      // eslint-disable-next-line no-new
+      new ConcreteObjectId(projectOrId.toString())
     } catch (e) {
       return callback(new Errors.NotFoundError(e.message))
     }
@@ -128,8 +129,8 @@ ProjectSchema.statics.getProject = function (projectOrId, fields, callback) {
 }
 
 function applyToAllFilesRecursivly(folder, fun) {
-  _.each(folder.fileRefs, file => fun(file))
-  _.each(folder.folders, folder => applyToAllFilesRecursivly(folder, fun))
+  _.forEach(folder.fileRefs, file => fun(file))
+  _.forEach(folder.folders, folder => applyToAllFilesRecursivly(folder, fun))
 }
 ProjectSchema.statics.applyToAllFilesRecursivly = applyToAllFilesRecursivly
 

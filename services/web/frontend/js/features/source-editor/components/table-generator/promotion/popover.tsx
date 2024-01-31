@@ -9,7 +9,6 @@ import {
   useRef,
   useState,
 } from 'react'
-import PropTypes from 'prop-types'
 import { useEditorContext } from '../../../../../shared/context/editor-context'
 import { Button, Overlay, Popover } from 'react-bootstrap'
 import Close from '../../../../../shared/components/close'
@@ -26,22 +25,11 @@ const NEW_USER_CUTOFF_TIME = new Date(2023, 8, 20).getTime()
 const NOW_TIME = new Date().getTime()
 const GRAMMARLY_CUTOFF_TIME = new Date(2023, 9, 10).getTime()
 
-type EditorTutorials = {
-  inactiveTutorials: [string]
-  deactivateTutorial: (key: string) => void
-}
-
-const editorContextPropTypes = {
-  inactiveTutorials: PropTypes.arrayOf(PropTypes.string).isRequired,
-  deactivateTutorial: PropTypes.func.isRequired,
-}
-
 export const PromotionOverlay: FC = ({ children }) => {
   const ref = useRef<HTMLSpanElement>(null)
 
-  const { inactiveTutorials }: EditorTutorials = useEditorContext(
-    editorContextPropTypes
-  )
+  const { inactiveTutorials, currentPopup, setCurrentPopup } =
+    useEditorContext()
   const {
     splitTestVariants,
   }: { splitTestVariants: Record<string, string | undefined> } =
@@ -58,10 +46,20 @@ export const PromotionOverlay: FC = ({ children }) => {
   const hideBecauseNewUser =
     !userRegistrationTime || userRegistrationTime > NEW_USER_CUTOFF_TIME
 
+  const popupPresent =
+    currentPopup && currentPopup !== 'table-generator-promotion'
+
   const showPromotion =
     splitTestVariants['table-generator-promotion'] === 'enabled' &&
+    !popupPresent &&
     !inactiveTutorials.includes('table-generator-promotion') &&
     !hideBecauseNewUser
+
+  useEffect(() => {
+    if (showPromotion) {
+      setCurrentPopup('table-generator-promotion')
+    }
+  }, [showPromotion, setCurrentPopup])
 
   if (!showPromotion) {
     return <>{children}</>
@@ -80,9 +78,7 @@ const PromotionOverlayContent = memo(
     _props,
     ref: Ref<HTMLSpanElement>
   ) {
-    const { deactivateTutorial }: EditorTutorials = useEditorContext(
-      editorContextPropTypes
-    )
+    const { deactivateTutorial } = useEditorContext()
     const [timeoutExpired, setTimeoutExpired] = useState(false)
 
     const onClose = useCallback(() => {

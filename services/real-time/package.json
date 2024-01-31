@@ -13,7 +13,8 @@
     "lint": "eslint --max-warnings 0 --format unix .",
     "format": "prettier --list-different $PWD/'**/*.js'",
     "format:fix": "prettier --write $PWD/'**/*.js'",
-    "lint:fix": "eslint --fix ."
+    "lint:fix": "eslint --fix .",
+    "types:check": "tsc --noEmit"
   },
   "dependencies": {
     "@hapi/joi": "^17.1.1",
@@ -33,8 +34,7 @@
     "proxy-addr": "^2.0.7",
     "request": "^2.88.2",
     "socket.io": "github:overleaf/socket.io#0.9.19-overleaf-10",
-    "socket.io-client": "github:overleaf/socket.io-client#0.9.17-overleaf-5",
-    "underscore": "1.13.1"
+    "socket.io-client": "github:overleaf/socket.io-client#0.9.17-overleaf-5"
   },
   "devDependencies": {
     "chai": "^4.3.6",
@@ -44,6 +44,7 @@
     "sandboxed-module": "~0.3.0",
     "sinon": "^9.2.4",
     "timekeeper": "0.0.4",
+    "typescript": "^5.0.4",
     "uid-safe": "^2.1.5"
   }
 }

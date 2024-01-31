@@ -2,7 +2,6 @@ import React, { FC, useState } from 'react'
 import { Panel, PanelGroup } from 'react-resizable-panels'
 import NoSelectionPane from '@/features/ide-react/components/editor/no-selection-pane'
 import FileView from '@/features/file-view/components/file-view'
-import { fileViewFile } from '@/features/ide-react/hooks/use-file-tree'
 import MultipleSelectionPane from '@/features/ide-react/components/editor/multiple-selection-pane'
 import { HorizontalResizeHandle } from '@/features/ide-react/components/resize/horizontal-resize-handle'
 import { HorizontalToggler } from '@/features/ide-react/components/resize/horizontal-toggler'
@@ -12,12 +11,12 @@ import { usePdfPane } from '@/features/ide-react/hooks/use-pdf-pane'
 import { useLayoutContext } from '@/shared/context/layout-context'
 import { useTranslation } from 'react-i18next'
 import classNames from 'classnames'
+import { fileViewFile } from '@/features/ide-react/util/file-view'
+import { useFileTreeOpenContext } from '@/features/ide-react/context/file-tree-open-context'
 
 export const EditorAndPdf: FC<{
   editorPane: React.ReactNode
-  selectedEntityCount: number
-  openEntity: any // TODO
-}> = ({ editorPane, selectedEntityCount, openEntity }) => {
+}> = ({ editorPane }) => {
   const [resizing, setResizing] = useState(false)
 
   const { t } = useTranslation()
@@ -33,19 +32,27 @@ export const EditorAndPdf: FC<{
 
   const { view, pdfLayout } = useLayoutContext()
 
+  const { selectedEntityCount, openEntity } = useFileTreeOpenContext()
+
   const editorIsOpen =
     view === 'editor' || view === 'file' || pdfLayout === 'sideBySide'
 
   return (
-    <PanelGroup autoSaveId="ide-editor-pdf-layout" direction="horizontal">
+    <PanelGroup
+      autoSaveId="ide-editor-pdf-layout"
+      direction="horizontal"
+      className={classNames({
+        'ide-panel-group-resizing': resizing,
+      })}
+    >
       {/* main */}
       {editorIsOpen && (
         <>
           <Panel
             id="panel-main"
             order={1}
-            defaultSizePercentage={50}
-            minSizePercentage={25}
+            defaultSize={50}
+            minSize={5}
             className={classNames('ide-react-panel', {
               'ide-panel-group-resizing': resizing,
             })}
@@ -90,8 +97,8 @@ export const EditorAndPdf: FC<{
         ref={pdfPanelRef}
         id="panel-pdf"
         order={2}
-        defaultSizePercentage={50}
-        minSizePercentage={25}
+        defaultSize={50}
+        minSize={5}
         collapsible
         onCollapse={handlePdfPaneCollapse}
         onExpand={handlePdfPaneExpand}

@@ -11,13 +11,13 @@ const { ObjectId } = require('mongodb')
 describe('TokenAccessHandler', function () {
   beforeEach(function () {
     this.token = 'abcdefabcdef'
-    this.projectId = ObjectId()
+    this.projectId = new ObjectId()
     this.project = {
       _id: this.projectId,
       publicAccesLevel: 'tokenBased',
-      owner_ref: ObjectId(),
+      owner_ref: new ObjectId(),
     }
-    this.userId = ObjectId()
+    this.userId = new ObjectId()
     this.req = {}
     this.TokenAccessHandler = SandboxedModule.require(modulePath, {
       requires: {
@@ -647,6 +647,30 @@ describe('TokenAccessHandler', function () {
         this.TokenAccessHandler.createTokenHashPrefix('zxpxjrwdtsgd')
       expect(prefix.length).to.equal(6)
     })
+  })
+
+  describe('normalizeTokenHashPrefix', function () {
+    const cases = {
+      // hex string
+      ab2345: 'ab2345',
+      '01234f': '01234f',
+      '012345': '012345',
+      // remove (encoded) hash
+      '#012345': '012345',
+      '%23012345': '012345',
+      // remove trailing special characters
+      '012345.': '012345',
+      '012345/': '012345',
+      // v1 doc
+      '%2F1234567%2F': '%2F1234567%2F',
+    }
+    for (const [input, output] of Object.entries(cases)) {
+      it(`should handle ${JSON.stringify(input)}`, function () {
+        expect(
+          this.TokenAccessHandler.normalizeTokenHashPrefix(input)
+        ).to.equal(output)
+      })
+    }
   })
 
   describe('checkTokenHashPrefix', function () {

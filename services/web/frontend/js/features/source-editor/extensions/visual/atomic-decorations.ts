@@ -67,6 +67,13 @@ import { TableRenderingErrorWidget } from './visual-widgets/table-rendering-erro
 import { GraphicsWidget } from './visual-widgets/graphics'
 import { InlineGraphicsWidget } from './visual-widgets/inline-graphics'
 import { PreviewPath } from '../../../../../../types/preview-path'
+import { selectDecoratedArgument } from './select-decorated-argument'
+import {
+  generateTable,
+  ParsedTableData,
+  validateParsedTable,
+} from '../../components/table-generator/utils'
+import { debugConsole } from '@/utils/debugging'
 
 type Options = {
   previewByPath: (path: string) => PreviewPath | null
@@ -324,21 +331,29 @@ export const atomicDecorations = (options: Options) => {
                 tabularNode.parent,
                 tableNode
               )
-              const tabularWidget = new TabularWidget(
-                tabularNode,
-                state.doc.sliceString(
-                  (tableNode ?? tabularNode).from,
-                  (tableNode ?? tabularNode).to
-                ),
-                tableNode,
-                directChild,
-                state
-              )
 
-              if (tabularWidget.isValid()) {
+              let parsedTableData: ParsedTableData | null = null
+              let validTable = false
+              try {
+                parsedTableData = generateTable(tabularNode, state)
+                validTable = validateParsedTable(parsedTableData)
+              } catch (e) {
+                debugConsole.error(e)
+              }
+
+              if (parsedTableData && validTable) {
                 decorations.push(
                   Decoration.replace({
-                    widget: tabularWidget,
+                    widget: new TabularWidget(
+                      parsedTableData,
+                      tabularNode,
+                      state.doc.sliceString(
+                        (tableNode ?? tabularNode).from,
+                        (tableNode ?? tabularNode).to
+                      ),
+                      tableNode,
+                      directChild
+                    ),
                     block: true,
                   }).range(nodeRef.from, nodeRef.to)
                 )
@@ -1029,6 +1044,18 @@ export const atomicDecorations = (options: Options) => {
                     )
                   )
                 }
+              } else if (commandName === '\\keywords') {
+                if (shouldDecorate(state, nodeRef)) {
+                  // command name and opening brace
+                  decorations.push(
+                    ...decorateArgumentBraces(
+                      new BraceWidget('keywords: '),
+                      textArgumentNode,
+                      nodeRef.from
+                    )
+                  )
+                  return false
+                }
               } else if (
                 commandName === '\\footnote' ||
                 commandName === '\\endnote'
@@ -1082,6 +1109,33 @@ export const atomicDecorations = (options: Options) => {
                       widget: new TeXWidget(),
                     }).range(nodeRef.from, nodeRef.to)
                   )
+                  return false
+                }
+              } else if (commandName === '\\ce') {
+                // Chemical equation/formula, from the `mhchem` CTAN package.
+                // Handled by the MathJaX mhchem extension:
+                // https://docs.mathjax.org/en/latest/input/tex/extensions/mhchem.html
+                if (textArgumentNode && shouldDecorate(state, nodeRef)) {
+                  const innerContent = state.doc
+                    .sliceString(
+                      textArgumentNode.from + 1,
+                      textArgumentNode.to - 1
+                    )
+                    .trim()
+
+                  if (innerContent.length) {
+                    const outerContent = state.doc.sliceString(
+                      nodeRef.from,
+                      nodeRef.to
+                    )
+
+                    decorations.push(
+                      Decoration.replace({
+                        widget: new MathWidget(outerContent, false),
+                      }).range(nodeRef.from, nodeRef.to)
+                    )
+                  }
+
                   return false
                 }
               } else if (hasCharacterSubstitution(commandName)) {
@@ -1225,6 +1279,7 @@ export const atomicDecorations = (options: Options) => {
             }
           }),
           skipPreambleWithCursor(field),
+          selectDecoratedArgument(field),
         ]
       },
     }),

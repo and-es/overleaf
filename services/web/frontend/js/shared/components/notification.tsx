@@ -3,9 +3,14 @@ import React, { ReactElement, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import MaterialIcon from './material-icon'
 
-export type NotificationType = 'info' | 'success' | 'warning' | 'error'
+export type NotificationType =
+  | 'info'
+  | 'success'
+  | 'warning'
+  | 'error'
+  | 'offer'
 
-type NotificationProps = {
+export type NotificationProps = {
   action?: React.ReactElement
   ariaLive?: 'polite' | 'off' | 'assertive'
   className?: string
@@ -16,6 +21,7 @@ type NotificationProps = {
   onDismiss?: () => void
   title?: string
   type: NotificationType
+  id?: string
 }
 
 function NotificationIcon({
@@ -35,8 +41,9 @@ function NotificationIcon({
     icon = <MaterialIcon type="warning" />
   } else if (notificationType === 'error') {
     icon = <MaterialIcon type="error" />
+  } else if (notificationType === 'offer') {
+    icon = <MaterialIcon type="campaign" />
   }
-
   return <div className="notification-icon">{icon}</div>
 }
 
@@ -51,6 +58,7 @@ function Notification({
   onDismiss,
   title,
   type,
+  id,
 }: NotificationProps) {
   type = type || 'info'
   const { t } = useTranslation()
@@ -77,6 +85,7 @@ function Notification({
       className={notificationClassName}
       aria-live={ariaLive || 'off'}
       role="alert"
+      id={id}
     >
       <NotificationIcon notificationType={type} customIcon={customIcon} />
 

@@ -168,8 +168,8 @@ const TokenAccessHandler = {
   },
 
   addReadOnlyUserToProject(userId, projectId, callback) {
-    userId = ObjectId(userId.toString())
-    projectId = ObjectId(projectId.toString())
+    userId = new ObjectId(userId.toString())
+    projectId = new ObjectId(projectId.toString())
     Analytics.recordEventForUser(userId, 'project-joined', {
       mode: 'read-only',
     })
@@ -185,8 +185,8 @@ const TokenAccessHandler = {
   },
 
   addReadAndWriteUserToProject(userId, projectId, callback) {
-    userId = ObjectId(userId.toString())
-    projectId = ObjectId(projectId.toString())
+    userId = new ObjectId(userId.toString())
+    projectId = new ObjectId(projectId.toString())
     Analytics.recordEventForUser(userId, 'project-joined', {
       mode: 'read-write',
     })
@@ -287,12 +287,20 @@ const TokenAccessHandler = {
     return hash.digest('hex').slice(0, 6)
   },
 
+  normalizeTokenHashPrefix(tokenHashPrefix) {
+    if (typeof tokenHashPrefix !== 'string') return ''
+    // remove (encoded) hash
+    tokenHashPrefix = tokenHashPrefix.replace('#', '').replace('%23', '')
+    // remove trailing special characters that were copied by accident
+    tokenHashPrefix = tokenHashPrefix.replace(/[^a-z0-9]+$/i, '')
+    return tokenHashPrefix
+  },
+
   checkTokenHashPrefix(token, tokenHashPrefix, type, userId, logData = {}) {
     let hashPrefixStatus
 
-    if (tokenHashPrefix) {
-      tokenHashPrefix = tokenHashPrefix.replace('#', '').replace('%23', '')
-    }
+    tokenHashPrefix =
+      TokenAccessHandler.normalizeTokenHashPrefix(tokenHashPrefix)
 
     const v1Format = /%2F[0-9]{7,8}%2F/
     const isSuspectedV1Format = v1Format.test(tokenHashPrefix)

@@ -96,6 +96,12 @@ class SAMLAuthenticationError extends OError {
   }
 }
 
+class SAMLAuthenticationRequiredError extends SAMLAuthenticationError {
+  get i18nKey() {
+    return 'saml_authentication_required_error'
+  }
+}
+
 class SAMLGroupSSOLoginIdentityMismatchError extends SAMLAuthenticationError {
   get i18nKey() {
     return 'saml_login_identity_mismatch_error'
@@ -127,6 +133,12 @@ class SAMLMissingSignatureError extends SAMLAuthenticationError {
 }
 
 class SAMLInvalidResponseError extends SAMLAuthenticationError {}
+
+class SAMLResponseAlreadyProcessedError extends SAMLInvalidResponseError {
+  constructor() {
+    super('saml response already processed')
+  }
+}
 
 class SAMLLoginFailureError extends SAMLAuthenticationError {
   get i18nKey() {
@@ -269,6 +281,7 @@ module.exports = {
   InvalidError,
   NotInV2Error,
   OutputFileFetchFailedError,
+  SAMLAuthenticationRequiredError,
   SAMLIdentityExistsError,
   SAMLAlreadyLinkedError,
   SAMLEmailNotAffiliatedError,
@@ -283,6 +296,7 @@ module.exports = {
   SAMLInvalidResponseError,
   SAMLLoginFailureError,
   SAMLEmailNotRecognizedError,
+  SAMLResponseAlreadyProcessedError,
   SLInV2Error,
   ThirdPartyIdentityExistsError,
   ThirdPartyUserNotFoundError,

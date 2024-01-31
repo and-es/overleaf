@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react'
 import useScopeValue from '../../../../../shared/hooks/use-scope-value'
+import useLayoutToLeft from '@/features/ide-react/context/review-panel/hooks/useLayoutToLeft'
 import { sendMB } from '../../../../../infrastructure/event-tracking'
 import { ReviewPanelState } from '../types/review-panel-state'
 import * as ReviewPanel from '../types/review-panel-state'
@@ -131,6 +132,8 @@ function useAngularReviewPanelState(): ReviewPanelState {
       'bulkRejectActions'
     )
 
+  const layoutToLeft = useLayoutToLeft('#editor')
+
   const handleSetSubview = useCallback(
     (subView: SubView) => {
       setSubView(subView)
@@ -146,7 +149,6 @@ function useAngularReviewPanelState(): ReviewPanelState {
     [submitReplyAngular]
   )
 
-  const [entryHover, setEntryHover] = useState(false)
   const [isAddingComment, setIsAddingComment] = useState(false)
   const [navHeight, setNavHeight] = useState(0)
   const [toolbarHeight, setToolbarHeight] = useState(0)
@@ -158,7 +160,6 @@ function useAngularReviewPanelState(): ReviewPanelState {
       collapsed,
       commentThreads,
       entries,
-      entryHover,
       isAddingComment,
       loadingThreads,
       nVisibleSelectedChanges,
@@ -180,12 +181,12 @@ function useAngularReviewPanelState(): ReviewPanelState {
       formattedProjectMembers,
       layoutSuspended,
       unsavedComment,
+      layoutToLeft,
     }),
     [
       collapsed,
       commentThreads,
       entries,
-      entryHover,
       isAddingComment,
       loadingThreads,
       nVisibleSelectedChanges,
@@ -207,6 +208,7 @@ function useAngularReviewPanelState(): ReviewPanelState {
       formattedProjectMembers,
       layoutSuspended,
       unsavedComment,
+      layoutToLeft,
     ]
   )
 
@@ -231,7 +233,6 @@ function useAngularReviewPanelState(): ReviewPanelState {
       toggleTrackChangesForEveryone,
       toggleTrackChangesForUser,
       toggleTrackChangesForGuests,
-      setEntryHover,
       setCollapsed,
       setShouldCollapse,
       setIsAddingComment,
@@ -260,7 +261,6 @@ function useAngularReviewPanelState(): ReviewPanelState {
       toggleTrackChangesForUser,
       toggleTrackChangesForGuests,
       setCollapsed,
-      setEntryHover,
       setShouldCollapse,
       setIsAddingComment,
       setNavHeight,

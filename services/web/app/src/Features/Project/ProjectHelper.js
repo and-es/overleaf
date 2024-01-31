@@ -1,3 +1,4 @@
+// ts-check
 const { ObjectId } = require('mongodb')
 const _ = require('lodash')
 const { promisify } = require('util')
@@ -37,7 +38,7 @@ function compilerFromV1Engine(engine) {
  * @returns {boolean}
  */
 function isArchived(project, userId) {
-  userId = ObjectId(userId)
+  userId = new ObjectId(userId)
 
   return (project.archived || []).some(id => id.equals(userId))
 }
@@ -48,7 +49,7 @@ function isArchived(project, userId) {
  * @returns {boolean}
  */
 function isTrashed(project, userId) {
-  userId = ObjectId(userId)
+  userId = new ObjectId(userId)
 
   return (project.trashed || []).some(id => id.equals(userId))
 }
@@ -75,7 +76,7 @@ function _allCollaborators(project) {
 
 function calculateArchivedArray(project, userId, action) {
   let archived = project.archived
-  userId = ObjectId(userId)
+  userId = new ObjectId(userId)
 
   if (archived === true) {
     archived = _allCollaborators(project)
@@ -145,7 +146,6 @@ function _addNumericSuffixToProjectName(name, allProjectNames, maxLength) {
   const match = name.match(NUMERIC_SUFFIX_MATCH)
   let basename = name
   let n = 1
-  const last = allProjectNames.size + n
 
   if (match != null) {
     basename = name.replace(NUMERIC_SUFFIX_MATCH, '')
@@ -157,6 +157,7 @@ function _addNumericSuffixToProjectName(name, allProjectNames, maxLength) {
   const projectNamesWithSamePrefix = Array.from(allProjectNames).filter(name =>
     prefixMatcher.test(name)
   )
+  const last = allProjectNames.size + n
   const nIsLikelyAYear = n > 1000 && projectNamesWithSamePrefix.length < n / 2
   if (nIsLikelyAYear) {
     basename = name

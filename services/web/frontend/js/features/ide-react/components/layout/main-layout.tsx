@@ -11,11 +11,11 @@ import { HistoryProvider } from '@/features/history/context/history-context'
 import History from '@/features/ide-react/components/history'
 import EditorSidebar from '@/features/ide-react/components/editor-sidebar'
 import { EditorPane } from '@/features/ide-react/components/editor/editor-pane'
-import { useFileTree } from '@/features/ide-react/hooks/use-file-tree'
 import { useTranslation } from 'react-i18next'
 import { useSidebarPane } from '@/features/ide-react/hooks/use-sidebar-pane'
 import { useChatPane } from '@/features/ide-react/hooks/use-chat-pane'
 import { EditorAndPdf } from '@/features/ide-react/components/editor-and-pdf'
+import { useEditorManagerContext } from '@/features/ide-react/context/editor-manager-context'
 
 export const MainLayout: FC = () => {
   const { view } = useLayoutContext()
@@ -23,8 +23,7 @@ export const MainLayout: FC = () => {
   const {
     isOpen: sidebarIsOpen,
     setIsOpen: setSidebarIsOpen,
-    fixedPanelRef: sidebarPanelRef,
-    handleLayout: handleSidebarLayout,
+    panelRef: sidebarPanelRef,
     togglePane: toggleSidebar,
     handlePaneExpand: handleSidebarExpand,
     handlePaneCollapse: handleSidebarCollapse,
@@ -34,29 +33,20 @@ export const MainLayout: FC = () => {
 
   const {
     isOpen: chatIsOpen,
-    fixedPanelRef: chatPanelRef,
-    handleLayout: handleChatLayout,
+    panelRef: chatPanelRef,
+    togglePane: toggleChat,
     resizing: chatResizing,
     setResizing: setChatResizing,
+    handlePaneCollapse: handleChatCollapse,
+    handlePaneExpand: handleChatExpand,
   } = useChatPane()
 
-  const {
-    selectedEntityCount,
-    openEntity,
-    openDocId,
-    handleFileTreeInit,
-    handleFileTreeSelect,
-    handleFileTreeDelete,
-  } = useFileTree()
+  const { currentDocumentId } = useEditorManagerContext()
 
   const { t } = useTranslation()
 
-  // keep the editor pane open
-  const editorPane = openDocId ? (
-    <EditorPane
-      show={openEntity?.type === 'doc' && selectedEntityCount === 1}
-    />
-  ) : null
+  // keep the editor pane open when a doc is open, even if the history view is open
+  const editorPane = currentDocumentId ? <EditorPane /> : null
 
   return (
     <div className="ide-react-main">
@@ -65,7 +55,6 @@ export const MainLayout: FC = () => {
         <PanelGroup
           autoSaveId="ide-outer-layout"
           direction="horizontal"
-          onLayout={handleSidebarLayout}
           className={classNames({
             'ide-panel-group-resizing': sidebarResizing || chatResizing,
           })}
@@ -75,18 +64,14 @@ export const MainLayout: FC = () => {
             ref={sidebarPanelRef}
             id="panel-sidebar"
             order={1}
-            defaultSizePixels={200}
-            minSizePixels={150}
+            defaultSize={15}
+            minSize={5}
+            maxSize={80}
             collapsible
             onCollapse={handleSidebarCollapse}
             onExpand={handleSidebarExpand}
           >
-            <EditorSidebar
-              shouldShow={view !== 'history'}
-              onFileTreeInit={handleFileTreeInit}
-              onFileTreeSelect={handleFileTreeSelect}
-              onFileTreeDelete={handleFileTreeDelete}
-            />
+            <EditorSidebar />
             {view === 'history' && <HistorySidebar />}
           </Panel>
 
@@ -106,42 +91,37 @@ export const MainLayout: FC = () => {
           </HorizontalResizeHandle>
 
           <Panel id="panel-outer-main" order={2}>
-            <PanelGroup
-              autoSaveId="ide-inner-layout"
-              direction="horizontal"
-              onLayout={handleChatLayout}
-            >
+            <PanelGroup autoSaveId="ide-inner-layout" direction="horizontal">
               <Panel className="ide-react-panel" id="panel-main" order={1}>
                 {view === 'history' ? (
                   <HistoryProvider>
                     <History />
                   </HistoryProvider>
                 ) : (
-                  <EditorAndPdf
-                    editorPane={editorPane}
-                    selectedEntityCount={selectedEntityCount}
-                    openEntity={openEntity}
-                  />
+                  <EditorAndPdf editorPane={editorPane} />
                 )}
               </Panel>
 
-              {chatIsOpen && (
-                <>
-                  <HorizontalResizeHandle onDragging={setChatResizing} />
+              <HorizontalResizeHandle
+                onDoubleClick={toggleChat}
+                resizable={chatIsOpen}
+                onDragging={setChatResizing}
+              />
 
-                  {/* chat */}
-                  <Panel
-                    ref={chatPanelRef}
-                    id="panel-chat"
-                    order={2}
-                    defaultSizePixels={200}
-                    minSizePixels={150}
-                    collapsible
-                  >
-                    <ChatPane />
-                  </Panel>
-                </>
-              )}
+              {/* chat */}
+              <Panel
+                ref={chatPanelRef}
+                id="panel-chat"
+                order={2}
+                defaultSize={20}
+                minSize={5}
+                maxSize={30}
+                collapsible
+                onCollapse={handleChatCollapse}
+                onExpand={handleChatExpand}
+              >
+                <ChatPane />
+              </Panel>
             </PanelGroup>
           </Panel>
         </PanelGroup>

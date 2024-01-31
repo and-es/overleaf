@@ -42,7 +42,7 @@ interface OpenDocOptions
   forceReopen?: boolean
 }
 
-type EditorManager = {
+export type EditorManager = {
   getEditorType: () => EditorType | null
   showSymbolPalette: boolean
   currentDocument: Document
@@ -53,8 +53,13 @@ type EditorManager = {
   stopIgnoringExternalUpdates: () => void
   openDocId: (docId: string, options?: OpenDocOptions) => void
   openDoc: (document: Doc, options?: OpenDocOptions) => void
+  openDocs: OpenDocuments
   openInitialDoc: (docId: string) => void
   jumpToLine: (options: GotoLineOptions) => void
+  wantTrackChanges: boolean
+  setWantTrackChanges: React.Dispatch<
+    React.SetStateAction<EditorManager['wantTrackChanges']>
+  >
 }
 
 function hasGotoLine(options: OpenDocOptions): options is GotoLineOptions {
@@ -106,7 +111,14 @@ export const EditorManagerProvider: FC = ({ children }) => {
   const [, setOpening] = useScopeValue<boolean>('editor.opening')
   const [, setIsInErrorState] = useScopeValue<boolean>('editor.error_state')
   const [, setTrackChanges] = useScopeValue<boolean>('editor.trackChanges')
-  const [wantTrackChanges] = useScopeValue<boolean>('editor.wantTrackChanges')
+  const [wantTrackChanges, setWantTrackChanges] = useScopeValue<boolean>(
+    'editor.wantTrackChanges'
+  )
+
+  const wantTrackChangesRef = useRef(wantTrackChanges)
+  useEffect(() => {
+    wantTrackChangesRef.current = wantTrackChanges
+  }, [wantTrackChanges])
 
   const goToLineEmitter = useScopeEventEmitter('editor:gotoLine')
 
@@ -274,9 +286,9 @@ export const EditorManagerProvider: FC = ({ children }) => {
         syncTimeoutRef.current = null
       }
 
-      const want = wantTrackChanges
+      const want = wantTrackChangesRef.current
       const have = doc.getTrackingChanges()
-      if (wantTrackChanges === have) {
+      if (want === have) {
         setTrackChanges(want)
         return
       }
@@ -284,7 +296,7 @@ export const EditorManagerProvider: FC = ({ children }) => {
       const tryToggle = () => {
         const saved = doc.getInflightOp() == null && doc.getPendingOp() == null
         if (saved) {
-          doc.setTrackingChanges(wantTrackChanges)
+          doc.setTrackingChanges(want)
           setTrackChanges(want)
         } else {
           syncTimeoutRef.current = window.setTimeout(tryToggle, 100)
@@ -293,7 +305,7 @@ export const EditorManagerProvider: FC = ({ children }) => {
 
       tryToggle()
     },
-    [setTrackChanges, wantTrackChanges]
+    [setTrackChanges]
   )
 
   const doOpenNewDocument = useCallback(
@@ -594,8 +606,11 @@ export const EditorManagerProvider: FC = ({ children }) => {
       stopIgnoringExternalUpdates,
       openDocId: openDocWithId,
       openDoc,
+      openDocs,
       openInitialDoc,
       jumpToLine,
+      wantTrackChanges,
+      setWantTrackChanges,
     }),
     [
       getEditorType,
@@ -608,8 +623,11 @@ export const EditorManagerProvider: FC = ({ children }) => {
       stopIgnoringExternalUpdates,
       openDocWithId,
       openDoc,
+      openDocs,
       openInitialDoc,
       jumpToLine,
+      wantTrackChanges,
+      setWantTrackChanges,
     ]
   )
 

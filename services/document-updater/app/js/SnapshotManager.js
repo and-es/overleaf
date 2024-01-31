@@ -10,14 +10,14 @@
  * DS207: Consider shorter variations of null checks
  * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
  */
-let SnapshotManager
+const { promisifyAll } = require('@overleaf/promise-utils')
 const { db, ObjectId } = require('./mongodb')
 
-module.exports = SnapshotManager = {
+const SnapshotManager = {
   recordSnapshot(projectId, docId, version, pathname, lines, ranges, callback) {
     try {
-      projectId = ObjectId(projectId)
-      docId = ObjectId(docId)
+      projectId = new ObjectId(projectId)
+      docId = new ObjectId(docId)
     } catch (error) {
       return callback(error)
     }
@@ -70,9 +70,14 @@ module.exports = SnapshotManager = {
 
   _safeObjectId(data) {
     try {
-      return ObjectId(data)
+      return new ObjectId(data)
     } catch (error) {
       return data
     }
   },
 }
+
+module.exports = SnapshotManager
+module.exports.promises = promisifyAll(SnapshotManager, {
+  without: ['jsonRangesToMongo', '_safeObjectId'],
+})

@@ -13,10 +13,11 @@
 import sinon from 'sinon'
 import { expect } from 'chai'
 import Settings from '@overleaf/settings'
-import { ObjectId } from 'mongodb'
+import mongodb from 'mongodb-legacy'
 import nock from 'nock'
 import * as ProjectHistoryClient from './helpers/ProjectHistoryClient.js'
 import * as ProjectHistoryApp from './helpers/ProjectHistoryApp.js'
+const { ObjectId } = mongodb
 
 const MockHistoryStore = () => nock('http://localhost:3100')
 const MockFileStore = () => nock('http://localhost:3009')
@@ -31,7 +32,7 @@ describe('Labels', function () {
         throw error
       }
 
-      this.historyId = ObjectId().toString()
+      this.historyId = new ObjectId().toString()
       MockHistoryStore().post('/api/projects').reply(200, {
         projectId: this.historyId,
       })
@@ -42,7 +43,7 @@ describe('Labels', function () {
           if (error != null) {
             throw error
           }
-          this.project_id = ObjectId().toString()
+          this.project_id = new ObjectId().toString()
           MockWeb()
             .get(`/project/${this.project_id}/details`)
             .reply(200, {
@@ -65,7 +66,7 @@ describe('Labels', function () {
 
           this.comment = 'a saved version comment'
           this.comment2 = 'another saved version comment'
-          this.user_id = ObjectId().toString()
+          this.user_id = new ObjectId().toString()
           this.created_at = new Date(1)
           return done()
         }
@@ -115,6 +116,40 @@ describe('Labels', function () {
         }
         return ProjectHistoryClient.deleteLabel(
           this.project_id,
+          label.id,
+          error => {
+            if (error != null) {
+              throw error
+            }
+            return ProjectHistoryClient.getLabels(
+              this.project_id,
+              (error, labels) => {
+                if (error != null) {
+                  throw error
+                }
+                expect(labels).to.deep.equal([])
+                return done()
+              }
+            )
+          }
+        )
+      }
+    )
+  })
+
+  it('can delete labels for the current user', function (done) {
+    return ProjectHistoryClient.createLabel(
+      this.project_id,
+      this.user_id,
+      7,
+      this.comment,
+      this.created_at,
+      (error, label) => {
+        if (error != null) {
+          throw error
+        }
+        return ProjectHistoryClient.deleteLabelForUser(
+          this.project_id,
           this.user_id,
           label.id,
           error => {
@@ -138,8 +173,8 @@ describe('Labels', function () {
   })
 
   it('can transfer ownership of labels', function (done) {
-    const fromUser = ObjectId().toString()
-    const toUser = ObjectId().toString()
+    const fromUser = new ObjectId().toString()
+    const toUser = new ObjectId().toString()
     return ProjectHistoryClient.createLabel(
       this.project_id,
       fromUser,

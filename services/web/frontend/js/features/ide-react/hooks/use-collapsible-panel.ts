@@ -5,12 +5,15 @@ export default function useCollapsiblePanel(
   panelIsOpen: boolean,
   panelRef: RefObject<ImperativePanelHandle>
 ) {
+  // collapse the panel when it is toggled closed (including on initial layout)
   useEffect(() => {
-    if (panelRef.current) {
+    const panelHandle = panelRef.current
+
+    if (panelHandle) {
       if (panelIsOpen) {
-        panelRef.current.expand()
+        panelHandle.expand()
       } else {
-        panelRef.current.collapse()
+        panelHandle.collapse()
       }
     }
   }, [panelIsOpen, panelRef])

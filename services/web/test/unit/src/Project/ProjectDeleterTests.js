@@ -127,11 +127,6 @@ describe('ProjectDeleter', function () {
         deleteProject: sinon.stub().resolves(),
       },
     }
-    this.TpdsUpdateSender = {
-      promises: {
-        deleteProject: sinon.stub().resolves(),
-      },
-    }
     this.Features = {
       hasFeature: sinon.stub().returns(true),
     }
@@ -154,7 +149,6 @@ describe('ProjectDeleter', function () {
           this.DocumentUpdaterHandler,
         '../Tags/TagsHandler': this.TagsHandler,
         '../FileStore/FileStoreHandler': this.FileStoreHandler,
-        '../ThirdPartyDataStore/TpdsUpdateSender': this.TpdsUpdateSender,
         '../Chat/ChatApiHandler': this.ChatApiHandler,
         '../Collaborators/CollaboratorsHandler': this.CollaboratorsHandler,
         '../Collaborators/CollaboratorsGetter': this.CollaboratorsGetter,
@@ -496,14 +490,6 @@ describe('ProjectDeleter', function () {
         ).to.have.been.calledWith(this.deletedProjects[0].project._id)
       })
 
-      it('should destroy the files in project-archiver', function () {
-        expect(
-          this.TpdsUpdateSender.promises.deleteProject
-        ).to.have.been.calledWith({
-          projectId: this.deletedProjects[0].project._id,
-        })
-      })
-
       it('should destroy the chat threads and messages', function () {
         expect(
           this.ChatApiHandler.promises.destroyProject
@@ -553,11 +539,6 @@ describe('ProjectDeleter', function () {
           .called
       })
 
-      it('should not destroy the files in project-archiver', function () {
-        expect(this.TpdsUpdateSender.promises.deleteProject).to.not.have.been
-          .called
-      })
-
       it('should not destroy the chat threads and messages', function () {
         expect(this.ChatApiHandler.promises.destroyProject).to.not.have.been
           .called
@@ -567,7 +548,7 @@ describe('ProjectDeleter', function () {
 
   describe('archiveProject', function () {
     beforeEach(function () {
-      const archived = [ObjectId(this.user._id)]
+      const archived = [new ObjectId(this.user._id)]
       this.ProjectHelper.calculateArchivedArray.returns(archived)
 
       this.ProjectMock.expects('findOne')
@@ -580,7 +561,7 @@ describe('ProjectDeleter', function () {
           { _id: this.project._id },
           {
             $set: { archived },
-            $pull: { trashed: ObjectId(this.user._id) },
+            $pull: { trashed: new ObjectId(this.user._id) },
           }
         )
         .resolves()
@@ -609,7 +590,7 @@ describe('ProjectDeleter', function () {
 
   describe('unarchiveProject', function () {
     beforeEach(function () {
-      const archived = [ObjectId(this.user._id)]
+      const archived = [new ObjectId(this.user._id)]
       this.ProjectHelper.calculateArchivedArray.returns(archived)
 
       this.ProjectMock.expects('findOne')
@@ -645,7 +626,7 @@ describe('ProjectDeleter', function () {
 
   describe('trashProject', function () {
     beforeEach(function () {
-      const archived = [ObjectId(this.user._id)]
+      const archived = [new ObjectId(this.user._id)]
       this.ProjectHelper.calculateArchivedArray.returns(archived)
 
       this.ProjectMock.expects('findOne')
@@ -657,7 +638,7 @@ describe('ProjectDeleter', function () {
         .withArgs(
           { _id: this.project._id },
           {
-            $addToSet: { trashed: ObjectId(this.user._id) },
+            $addToSet: { trashed: new ObjectId(this.user._id) },
             $set: { archived },
           }
         )
@@ -695,7 +676,7 @@ describe('ProjectDeleter', function () {
       this.ProjectMock.expects('updateOne')
         .withArgs(
           { _id: this.project._id },
-          { $pull: { trashed: ObjectId(this.user._id) } }
+          { $pull: { trashed: new ObjectId(this.user._id) } }
         )
         .resolves()
     })
@@ -731,8 +712,8 @@ describe('ProjectDeleter', function () {
 
   describe('undeleteProject', function () {
     beforeEach(function () {
-      this.unknownProjectId = ObjectId()
-      this.purgedProjectId = ObjectId()
+      this.unknownProjectId = new ObjectId()
+      this.purgedProjectId = new ObjectId()
 
       this.deletedProject = {
         _id: 'deleted',

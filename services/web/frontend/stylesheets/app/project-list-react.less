@@ -29,6 +29,7 @@
   .project-list-wrapper {
     display: flex;
     align-items: stretch;
+    width: 100%;
     min-height: calc(~'100vh -' @header-height);
   }
 
@@ -77,6 +78,7 @@
 
   .project-list-welcome-wrapper {
     width: 100%;
+    padding-bottom: 25px;
 
     .welcome-new-wrapper {
       .welcome-title {
@@ -645,6 +647,8 @@
 
   .loading-container {
     display: flex;
+    flex-direction: column;
+    justify-content: center;
     align-items: center;
     min-height: calc(~'100vh -' @header-height);
 
@@ -917,6 +921,10 @@
   margin: 0 14px 0 0;
   display: inline-block;
   vertical-align: middle;
+
+  &:focus-visible {
+    box-shadow: 0 0 0 2px @white, 0 0 0 3px @blue-50, 0 0 0 5px @blue-30;
+  }
 
   &.more-button {
     border: 1px solid @gray-dark;

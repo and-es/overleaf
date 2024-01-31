@@ -17,8 +17,8 @@ const logger = require('@overleaf/logger')
 
 module.exports = {
   check(callback) {
-    const docId = ObjectId()
-    const projectId = ObjectId(settings.docstore.healthCheck.project_id)
+    const docId = new ObjectId()
+    const projectId = new ObjectId(settings.docstore.healthCheck.project_id)
     const url = `http://localhost:${port}/project/${projectId}/doc/${docId}`
     const lines = [
       'smoke test - delete me',
@@ -61,7 +61,6 @@ module.exports = {
         })
       },
       cb => db.docs.deleteOne({ _id: docId, project_id: projectId }, cb),
-      cb => db.docOps.deleteOne({ doc_id: docId }, cb),
     ]
     return async.series(jobs, callback)
   },

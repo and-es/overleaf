@@ -12,14 +12,10 @@ import { markDecorations } from './mark-decorations'
 import { EditorView, ViewPlugin } from '@codemirror/view'
 import { visualKeymap } from './visual-keymap'
 import { mousedown, mouseDownEffect } from './selection'
-import { findEffect } from '../../utils/effects'
 import { forceParsing, syntaxTree } from '@codemirror/language'
 import { hasLanguageLoadedEffect } from '../language'
 import { restoreScrollPosition } from '../scroll-position'
-import { CurrentDoc } from '../../../../../../types/current-doc'
-import isValidTeXFile from '../../../../main/is-valid-tex-file'
 import { listItemMarker } from './list-item-marker'
-import { selectDecoratedArgument } from './select-decorated-argument'
 import { pasteHtml } from './paste-html'
 import { commandTooltip } from '../command-tooltip'
 import { tableGeneratorTheme } from './table-generator'
@@ -34,25 +30,25 @@ type Options = {
 const visualConf = new Compartment()
 
 export const toggleVisualEffect = StateEffect.define<boolean>()
-export const findToggleVisualEffect = findEffect(toggleVisualEffect)
 
 const visualState = StateField.define<boolean>({
   create() {
     return false
   },
   update(value, tr) {
-    return findToggleVisualEffect(tr)?.value ?? value
+    for (const effect of tr.effects) {
+      if (effect.is(toggleVisualEffect)) {
+        return effect.value
+      }
+    }
+    return value
   },
 })
 
 const configureVisualExtensions = (options: Options) =>
   options.visual ? extension(options) : []
 
-export const visual = (currentDoc: CurrentDoc, options: Options): Extension => {
-  if (!isValidTeXFile(currentDoc.docName)) {
-    return []
-  }
-
+export const visual = (options: Options): Extension => {
   return [
     visualState.init(() => options.visual),
     visualConf.of(configureVisualExtensions(options)),
@@ -80,10 +76,11 @@ export const sourceOnly = (visual: boolean, extension: Extension) => {
 
     // Respond to switching editor modes
     EditorState.transactionExtender.of(tr => {
-      const effect = findToggleVisualEffect(tr)
-      if (effect) {
-        return {
-          effects: conf.reconfigure(configure(effect.value)),
+      for (const effect of tr.effects) {
+        if (effect.is(toggleVisualEffect)) {
+          return {
+            effects: conf.reconfigure(configure(effect.value)),
+          }
         }
       }
       return null
@@ -195,7 +192,6 @@ const extension = (options: Options) => [
   visualKeymap,
   commandTooltip,
   scrollJumpAdjuster,
-  selectDecoratedArgument,
   showContentWhenParsed,
   pasteHtml,
   tableGeneratorTheme,

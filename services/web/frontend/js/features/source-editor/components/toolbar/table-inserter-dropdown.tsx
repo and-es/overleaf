@@ -1,4 +1,4 @@
-import { FC, useCallback, useRef, useState } from 'react'
+import { FC, memo, useCallback, useRef, useState } from 'react'
 import * as commands from '../../extensions/toolbar/commands'
 import { useTranslation } from 'react-i18next'
 import useDropdown from '../../../../shared/hooks/use-dropdown'
@@ -9,7 +9,7 @@ import MaterialIcon from '../../../../shared/components/material-icon'
 import classNames from 'classnames'
 import { emitToolbarEvent } from '../../extensions/toolbar/utils/analytics'
 
-export const TableInserterDropdown: FC = () => {
+export const TableInserterDropdown = memo(() => {
   const { t } = useTranslation()
   const { open, onToggle, ref } = useDropdown()
   const view = useCodeMirrorViewContext()
@@ -57,19 +57,24 @@ export const TableInserterDropdown: FC = () => {
         container={view.dom}
         containerPadding={0}
         animation
+        rootClose
         onHide={() => onToggle(false)}
       >
         <Popover
           id="toolbar-table-menu"
           ref={ref}
-          className="ol-cm-toolbar-button-menu-popover ol-cm-toolbar-table-grid-popover"
+          className="ol-cm-toolbar-button-menu-popover ol-cm-toolbar-button-menu-popover-unstyled"
         >
-          <SizeGrid sizeX={10} sizeY={10} onSizeSelected={onSizeSelected} />
+          <div className="ol-cm-toolbar-table-grid-popover">
+            <SizeGrid sizeX={10} sizeY={10} onSizeSelected={onSizeSelected} />
+          </div>
         </Popover>
       </Overlay>
     </>
   )
-}
+})
+TableInserterDropdown.displayName = 'TableInserterDropdown'
+
 const range = (start: number, end: number) =>
   Array.from({ length: end - start + 1 }, (v, k) => k + start)
 

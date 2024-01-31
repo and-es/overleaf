@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { memo, useMemo } from 'react'
 import Container from './container'
 import Toolbar from './toolbar/toolbar'
 import Nav from './nav'
@@ -29,7 +29,6 @@ function CurrentFileContainer() {
     permissions,
     loadingThreads,
     users,
-    entryHover,
     nVisibleSelectedChanges: nChanges,
   } = useReviewPanelValueContext()
   const contentHeight = useCodeMirrorContentHeight()
@@ -44,12 +43,7 @@ function CurrentFileContainer() {
   }, [currentDocEntries])
 
   return (
-    <Container
-      classNames={{
-        'rp-collapsed-displaying-entry': entryHover,
-        'rp-current-file-container': true,
-      }}
-    >
+    <Container className="rp-current-file-container">
       <div className="review-panel-tools">
         <Toolbar />
         <Nav />
@@ -151,4 +145,4 @@ function CurrentFileContainer() {
   )
 }
 
-export default CurrentFileContainer
+export default memo(CurrentFileContainer)

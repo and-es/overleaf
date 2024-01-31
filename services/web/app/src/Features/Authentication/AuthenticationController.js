@@ -80,30 +80,36 @@ const AuthenticationController = {
     // This function is middleware which wraps the passport.authenticate middleware,
     // so we can send back our custom `{message: {text: "", type: ""}}` responses on failure,
     // and send a `{redir: ""}` response on success
-    passport.authenticate('local', function (err, user, info) {
-      if (err) {
-        return next(err)
-      }
-      if (user) {
-        // `user` is either a user object or false
-        AuthenticationController.setAuditInfo(req, { method: 'Password login' })
-        return AuthenticationController.finishLogin(user, req, res, next)
-      } else {
-        if (info.redir != null) {
-          return res.json({ redir: info.redir })
+    passport.authenticate(
+      'local',
+      { keepSessionInfo: true },
+      function (err, user, info) {
+        if (err) {
+          return next(err)
+        }
+        if (user) {
+          // `user` is either a user object or false
+          AuthenticationController.setAuditInfo(req, {
+            method: 'Password login',
+          })
+          return AuthenticationController.finishLogin(user, req, res, next)
         } else {
-          res.status(info.status || 200)
-          delete info.status
-          const body = { message: info }
-          const { errorReason } = info
-          if (errorReason) {
-            body.errorReason = errorReason
-            delete info.errorReason
+          if (info.redir != null) {
+            return res.json({ redir: info.redir })
+          } else {
+            res.status(info.status || 200)
+            delete info.status
+            const body = { message: info }
+            const { errorReason } = info
+            if (errorReason) {
+              body.errorReason = errorReason
+              delete info.errorReason
+            }
+            return res.json(body)
           }
-          return res.json(body)
         }
       }
-    })(req, res, next)
+    )(req, res, next)
   },
 
   finishLogin(user, req, res, next) {
@@ -300,19 +306,26 @@ const AuthenticationController = {
     return doRequest
   },
 
-  requireOauth() {
+  /**
+   * @param {string} scope
+   * @return {import('express').Handler}
+   */
+  requireOauth(scope) {
+    if (typeof scope !== 'string' || !scope) {
+      throw new Error(
+        "requireOauth() expects a non-empty string as 'scope' parameter"
+      )
+    }
+
     // require this here because module may not be included in some versions
     const Oauth2Server = require('../../../../modules/oauth2-server/app/src/Oauth2Server')
     return function (req, res, next) {
-      if (next == null) {
-        next = function () {}
-      }
       const request = new Oauth2Server.Request(req)
       const response = new Oauth2Server.Response(res)
-      return Oauth2Server.server.authenticate(
+      Oauth2Server.server.authenticate(
         request,
         response,
-        {},
+        { scope },
         function (err, token) {
           if (err) {
             // use a 401 status code for malformed header for git-bridge
@@ -323,14 +336,15 @@ const AuthenticationController = {
               err.code = 401
             }
             // send all other errors
-            return res
+            res
               .status(err.code)
               .json({ error: err.name, error_description: err.message })
+          } else {
+            req.oauth = { access_token: token.accessToken }
+            req.oauth_token = token
+            req.oauth_user = token.user
+            next()
           }
-          req.oauth = { access_token: token.accessToken }
-          req.oauth_token = token
-          req.oauth_user = token.user
-          return next()
         }
       )
     }
@@ -557,55 +571,34 @@ const AuthenticationController = {
 }
 
 function _afterLoginSessionSetup(req, user, callback) {
-  if (callback == null) {
-    callback = function () {}
-  }
-  req.login(user, function (err) {
+  req.login(user, { keepSessionInfo: true }, function (err) {
     if (err) {
       OError.tag(err, 'error from req.login', {
         user_id: user._id,
       })
       return callback(err)
     }
-    // Regenerate the session to get a new sessionID (cookie value) to
-    // protect against session fixation attacks
-    const oldSession = req.session
-    req.session.destroy(function (err) {
+    delete req.session.__tmp
+    delete req.session.csrfSecret
+    req.session.save(function (err) {
       if (err) {
-        OError.tag(err, 'error when trying to destroy old session', {
+        OError.tag(err, 'error saving regenerated session after login', {
           user_id: user._id,
         })
         return callback(err)
       }
-      req.sessionStore.generate(req)
-      // Note: the validation token is not writable, so it does not get
-      // transferred to the new session below.
-      for (const key in oldSession) {
-        const value = oldSession[key]
-        if (key !== '__tmp' && key !== 'csrfSecret') {
-          req.session[key] = value
-        }
+      UserSessionsManager.trackSession(user, req.sessionID, function () {})
+      if (!req.deviceHistory) {
+        // Captcha disabled or SSO-based login.
+        return callback()
       }
-      req.session.save(function (err) {
-        if (err) {
-          OError.tag(err, 'error saving regenerated session after login', {
-            user_id: user._id,
-          })
-          return callback(err)
-        }
-        UserSessionsManager.trackSession(user, req.sessionID, function () {})
-        if (!req.deviceHistory) {
-          // Captcha disabled or SSO-based login.
-          return callback()
-        }
-        req.deviceHistory.add(user.email)
-        req.deviceHistory
-          .serialize(req.res)
-          .catch(err => {
-            logger.err({ err }, 'cannot serialize deviceHistory')
-          })
-          .finally(() => callback())
-      })
+      req.deviceHistory.add(user.email)
+      req.deviceHistory
+        .serialize(req.res)
+        .catch(err => {
+          logger.err({ err }, 'cannot serialize deviceHistory')
+        })
+        .finally(() => callback())
     })
   })
 }

@@ -18,8 +18,8 @@ type ReviewPanelViewProps = {
 }
 
 function ReviewPanelView({ parentDomNode }: ReviewPanelViewProps) {
-  const { subView, loadingThreads } = useReviewPanelValueContext()
-  const { reviewPanelOpen } = useLayoutContext()
+  const { subView, loadingThreads, layoutToLeft } = useReviewPanelValueContext()
+  const { reviewPanelOpen, miniReviewPanelVisible } = useLayoutContext()
   const { isReactIde } = useIdeContext()
 
   const content = (
@@ -33,20 +33,19 @@ function ReviewPanelView({ parentDomNode }: ReviewPanelViewProps) {
     </>
   )
 
-  // TODO fix DOM structure
   return ReactDOM.createPortal(
     isReactIde ? (
       <div
-        className={classnames('review-panel', {
+        className={classnames('review-panel-wrapper', {
           'rp-state-current-file': subView === 'cur_file',
           'rp-state-current-file-expanded':
             subView === 'cur_file' && reviewPanelOpen,
           'rp-state-current-file-mini':
             subView === 'cur_file' && !reviewPanelOpen,
           'rp-state-overview': subView === 'overview',
-          // 'rp-size-mini': ui.miniReviewPanelVisible,
+          'rp-size-mini': miniReviewPanelVisible,
           'rp-size-expanded': reviewPanelOpen,
-          // 'rp-layout-left': reviewPanel.layoutToLeft,
+          'rp-layout-left': layoutToLeft,
           'rp-loading-threads': loadingThreads,
         })}
       >

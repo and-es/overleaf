@@ -20,7 +20,7 @@ export function getLabels(projectId, callback) {
       return callback(OError.tag(error))
     }
     return db.projectHistoryLabels
-      .find({ project_id: ObjectId(projectId) })
+      .find({ project_id: new ObjectId(projectId) })
       .toArray(function (error, labels) {
         if (error != null) {
           return callback(OError.tag(error))
@@ -64,10 +64,10 @@ export function createLabel(
       createdAt = createdAt != null ? new Date(createdAt) : new Date()
 
       const label = {
-        project_id: ObjectId(projectId),
+        project_id: new ObjectId(projectId),
         comment,
         version,
-        user_id: ObjectId(userId),
+        user_id: new ObjectId(userId),
         created_at: createdAt,
       }
       db.projectHistoryLabels.insertOne(label, function (error, confirmation) {
@@ -81,7 +81,7 @@ export function createLabel(
   })
 }
 
-export function deleteLabel(projectId, userId, labelId, callback) {
+export function deleteLabelForUser(projectId, userId, labelId, callback) {
   return _toObjectId(
     projectId,
     userId,
@@ -92,14 +92,29 @@ export function deleteLabel(projectId, userId, labelId, callback) {
       }
       return db.projectHistoryLabels.deleteOne(
         {
-          _id: ObjectId(labelId),
-          project_id: ObjectId(projectId),
-          user_id: ObjectId(userId),
+          _id: new ObjectId(labelId),
+          project_id: new ObjectId(projectId),
+          user_id: new ObjectId(userId),
         },
         callback
       )
     }
   )
+}
+
+export function deleteLabel(projectId, labelId, callback) {
+  return _toObjectId(projectId, labelId, function (error, projectId, labelId) {
+    if (error != null) {
+      return callback(OError.tag(error))
+    }
+    return db.projectHistoryLabels.deleteOne(
+      {
+        _id: new ObjectId(labelId),
+        project_id: new ObjectId(projectId),
+      },
+      callback
+    )
+  })
 }
 
 export function transferLabels(fromUserId, toUserId, callback) {
@@ -128,7 +143,7 @@ function _toObjectId(...args1) {
   const args = args1.slice(0, adjustedLength - 1)
   const callback = args1[adjustedLength - 1]
   try {
-    const ids = args.map(ObjectId)
+    const ids = args.map(id => new ObjectId(id))
     return callback(null, ...Array.from(ids))
   } catch (error) {
     return callback(error)

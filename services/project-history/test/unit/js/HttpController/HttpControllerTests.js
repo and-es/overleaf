@@ -1,6 +1,7 @@
 import sinon from 'sinon'
 import { strict as esmock } from 'esmock'
-import { ObjectId } from 'mongodb'
+import mongodb from 'mongodb-legacy'
+const { ObjectId } = mongodb
 
 const MODULE_PATH = '../../../../app/js/HttpController.js'
 
@@ -44,6 +45,7 @@ describe('HttpController', function () {
     this.LabelsManager = {
       createLabel: sinon.stub(),
       deleteLabel: sinon.stub().yields(),
+      deleteLabelForUser: sinon.stub().yields(),
       getLabels: sinon.stub(),
     }
     this.HistoryApiManager = {
@@ -74,6 +76,7 @@ describe('HttpController', function () {
     })
     this.pathname = 'doc-id-123'
     this.projectId = new ObjectId().toString()
+    this.projectOwnerId = new ObjectId().toString()
     this.next = sinon.stub()
     this.userId = new ObjectId().toString()
     this.now = Date.now()
@@ -106,7 +109,7 @@ describe('HttpController', function () {
 
   describe('initializeProject', function () {
     beforeEach(function () {
-      this.historyId = ObjectId().toString()
+      this.historyId = new ObjectId().toString()
       this.req = { body: { historyId: this.historyId } }
       this.HistoryStoreManager.initializeProject.yields(null, this.historyId)
       this.HttpController.initializeProject(this.req, this.res, this.next)
@@ -472,21 +475,43 @@ describe('HttpController', function () {
     })
   })
 
-  describe('deleteLabel', function () {
+  describe('deleteLabelForUser', function () {
     beforeEach(function () {
       this.req = {
         params: {
           project_id: this.projectId,
           user_id: this.userId,
-          label_id: (this.label_id = ObjectId()),
+          label_id: (this.label_id = new ObjectId()),
+        },
+      }
+      this.HttpController.deleteLabelForUser(this.req, this.res, this.next)
+    })
+
+    it('should delete a label for a project', function () {
+      this.LabelsManager.deleteLabelForUser
+        .calledWith(this.projectId, this.userId, this.label_id)
+        .should.equal(true)
+    })
+
+    it('should return 204', function () {
+      this.res.sendStatus.calledWith(204).should.equal(true)
+    })
+  })
+
+  describe('deleteLabel', function () {
+    beforeEach(function () {
+      this.req = {
+        params: {
+          project_id: this.projectId,
+          label_id: (this.label_id = new ObjectId()),
         },
       }
       this.HttpController.deleteLabel(this.req, this.res, this.next)
     })
 
-    it('should create a label for a project', function () {
+    it('should delete a label for a project', function () {
       this.LabelsManager.deleteLabel
-        .calledWith(this.projectId, this.userId, this.label_id)
+        .calledWith(this.projectId, this.label_id)
         .should.equal(true)
     })
 

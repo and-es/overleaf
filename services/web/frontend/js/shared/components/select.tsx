@@ -1,6 +1,12 @@
 /* eslint-disable jsx-a11y/label-has-for */
 /* eslint-disable jsx-a11y/label-has-associated-control */
-import { useRef, useEffect } from 'react'
+import {
+  useRef,
+  useEffect,
+  KeyboardEventHandler,
+  useCallback,
+  ReactNode,
+} from 'react'
 import classNames from 'classnames'
 import { useSelect } from 'downshift'
 import Icon from './icon'
@@ -12,7 +18,7 @@ export type SelectProps<T> = {
   // Stringifies an item of type T. The resulting string is rendered as a dropdown option.
   itemToString: (item: T | null | undefined) => string
   // Caption for the dropdown.
-  label?: string
+  label?: ReactNode
   // Attribute used to identify the component inside a Form. This name is used to
   // retrieve FormData when the form is submitted. The value of the FormData entry
   // is the string returned by `itemToString(selectedItem)`.
@@ -59,6 +65,7 @@ export const Select = <T,>({
     getMenuProps,
     getItemProps,
     highlightedIndex,
+    openMenu,
   } = useSelect({
     items: items ?? [],
     itemToString,
@@ -91,6 +98,17 @@ export const Select = <T,>({
     }
   }, [name, itemToString, selectedItem, defaultItem])
 
+  const onKeyDown: KeyboardEventHandler<HTMLButtonElement> = useCallback(
+    event => {
+      if (event.key === 'Enter' && !isOpen) {
+        event.preventDefault()
+        ;(event.nativeEvent as any).preventDownshiftDefault = true
+        openMenu()
+      }
+    },
+    [isOpen, openMenu]
+  )
+
   let value: string | undefined
   if (selectedItem || defaultItem) {
     value = itemToString(selectedItem || defaultItem)
@@ -113,7 +131,12 @@ export const Select = <T,>({
         ) : null}
         <div
           className={classNames({ disabled }, 'select-trigger')}
-          {...getToggleButtonProps({ disabled })}
+          // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+          tabIndex={0}
+          {...getToggleButtonProps({
+            disabled,
+            onKeyDown,
+          })}
         >
           <div>{value}</div>
           <div>

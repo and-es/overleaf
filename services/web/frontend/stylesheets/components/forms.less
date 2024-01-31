@@ -187,9 +187,9 @@ input[type='date'] {
 //
 // Designed to help with the organization and spacing of vertical forms. For
 // horizontal forms, use the predefined grid classes.
-
+@form-group-margin-bottom: 15px;
 .form-group {
-  margin-bottom: 15px;
+  margin-bottom: @form-group-margin-bottom;
 }
 
 // Checkboxes and radios
@@ -281,11 +281,6 @@ input[type='checkbox'],
 .has-feedback {
   // Enable absolute positioning
   position: relative;
-
-  // Ensure icons don't overlap text
-  .form-control {
-    padding-right: (@input-height-base * 1.25);
-  }
 
   // Feedback icon (requires .glyphicon classes)
   .form-control-feedback {

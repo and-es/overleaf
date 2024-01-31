@@ -13,7 +13,7 @@ import ProjectListTable from './table/project-list-table'
 import SurveyWidget from './survey-widget'
 import WelcomeMessage from './welcome-message'
 import LoadingBranded from '../../../shared/components/loading-branded'
-import SystemMessages from './notifications/system-messages'
+import SystemMessages from '../../../shared/components/system-messages'
 import UserNotifications from './notifications/user-notifications'
 import SearchForm from './search-form'
 import ProjectsDropdown from './dropdown/projects-dropdown'
@@ -23,8 +23,6 @@ import ProjectListTitle from './title/project-list-title'
 import Sidebar from './sidebar/sidebar'
 import LoadMore from './load-more'
 import { useEffect } from 'react'
-import getMeta from '../../../utils/meta'
-import WelcomeMessageNew from './welcome-message-new'
 import withErrorBoundary from '../../../infrastructure/error-boundary'
 import { GenericErrorBoundaryFallback } from '../../../shared/components/generic-error-boundary-fallback'
 
@@ -63,22 +61,21 @@ function ProjectListPageContent() {
   } = useProjectListContext()
 
   const selectedTag = tags.find(tag => tag._id === selectedTagId)
-  const welcomePageRedesignVariant = getMeta(
-    'ol-welcomePageRedesignVariant'
-  ) as 'enabled' | 'default'
 
   useEffect(() => {
     eventTracking.sendMB('loads_v2_dash', {})
   }, [])
 
+  const { t } = useTranslation()
+
   return isLoading ? (
     <div className="loading-container">
-      <LoadingBranded loadProgress={loadProgress} />
+      <LoadingBranded loadProgress={loadProgress} label={t('loading')} />
     </div>
   ) : (
     <>
       <SystemMessages />
-      <div className="project-list-wrapper clearfix">
+      <div className="project-list-wrapper clearfix container mx-0 px-0">
         {totalProjectsCount > 0 ? (
           <>
             <Sidebar />
@@ -161,7 +158,7 @@ function ProjectListPageContent() {
         ) : (
           <div className="project-list-welcome-wrapper">
             {error ? <DashApiError /> : ''}
-            <Row className="row-spaced">
+            <Row className="row-spaced mx-0">
               <Col
                 sm={10}
                 smOffset={1}
@@ -174,11 +171,7 @@ function ProjectListPageContent() {
                     <UserNotifications />
                   </Col>
                 </Row>
-                {welcomePageRedesignVariant === 'enabled' ? (
-                  <WelcomeMessageNew />
-                ) : (
-                  <WelcomeMessage />
-                )}
+                <WelcomeMessage />
               </Col>
             </Row>
           </div>

@@ -2,6 +2,7 @@ import { memo, useCallback } from 'react'
 import Notification from './notification'
 import { sendMB } from '../../../../infrastructure/event-tracking'
 import customLocalStorage from '../../../../infrastructure/local-storage'
+import getMeta from '@/utils/meta'
 
 const eventSegmentation = {
   location: 'dashboard-banner',
@@ -18,15 +19,16 @@ function WritefullPromoBanner({
   setShow: (value: boolean) => void
   onDismiss: () => void
 }) {
+  const newNotificationStyle = getMeta(
+    'ol-newNotificationStyle',
+    false
+  ) as boolean
   const handleOpenLink = useCallback(() => {
     sendMB('promo-click', eventSegmentation)
   }, [])
 
   const handleClose = useCallback(() => {
-    customLocalStorage.setItem(
-      'has_dismissed_writefull_promo_banner',
-      new Date()
-    )
+    customLocalStorage.setItem('has_dismissed_writefull_promo_banner', true)
     setShow(false)
     sendMB('promo-dismiss', eventSegmentation)
     onDismiss()
@@ -50,7 +52,11 @@ function WritefullPromoBanner({
       }
       action={
         <a
-          className="pull-right btn btn-info btn-sm"
+          className={
+            newNotificationStyle
+              ? 'btn btn-secondary btn-sm'
+              : 'pull-right btn btn-info btn-sm'
+          }
           href="https://my.writefull.com/overleaf-invite?code=OVERLEAF10"
           target="_blank"
           rel="noreferrer"
@@ -62,6 +68,7 @@ function WritefullPromoBanner({
             height={16}
             width={16}
             style={{ marginRight: 4 }}
+            aria-hidden="true"
           />
           <span>Get Writefull for Overleaf</span>
         </a>

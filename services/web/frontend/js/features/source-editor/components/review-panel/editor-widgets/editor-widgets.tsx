@@ -14,7 +14,9 @@ import Modal, { useBulkActionsModal } from '../entries/bulk-actions-entry/modal'
 import getMeta from '../../../../../utils/meta'
 import useScopeValue from '../../../../../shared/hooks/use-scope-value'
 import useScopeEventListener from '@/shared/hooks/use-scope-event-listener'
-import { useCallback } from 'react'
+import { memo, useCallback } from 'react'
+import { useLayoutContext } from '@/shared/context/layout-context'
+import classnames from 'classnames'
 
 function EditorWidgets() {
   const { t } = useTranslation()
@@ -35,6 +37,7 @@ function EditorWidgets() {
       'addNewComment'
     )
   const view = useCodeMirrorViewContext()
+  const { reviewPanelOpen } = useLayoutContext()
 
   const {
     entries,
@@ -75,7 +78,13 @@ function EditorWidgets() {
 
   return ReactDOM.createPortal(
     <>
-      <div className="rp-in-editor-widgets react-rp-in-editor-widgets">
+      <div
+        className={classnames(
+          'rp-in-editor-widgets',
+          'react-rp-in-editor-widgets',
+          { hidden: reviewPanelOpen }
+        )}
+      >
         <div className="rp-in-editor-widgets-inner">
           {wantTrackChanges && <ToggleWidget />}
           {nChanges > 1 && (
@@ -109,4 +118,4 @@ function EditorWidgets() {
   )
 }
 
-export default EditorWidgets
+export default memo(EditorWidgets)

@@ -19,6 +19,7 @@
 @import './editor/dictionary.less';
 @import './editor/compile-button.less';
 @import './editor/figure-modal.less';
+@import './editor/table-generator-column-width-modal.less';
 @import './editor/ide-react.less';
 
 @ui-layout-toggler-def-height: 50px;
@@ -639,6 +640,7 @@ CodeMirror
 // rule is added automatically (inline and not configurable), the only workaround is to use `!important`.
 .editor-container {
   overflow: visible !important;
+  container-type: inline-size;
 }
 
 .pdf-preview-messages {
@@ -741,14 +743,19 @@ CodeMirror
   }
 }
 
-.grammarly-advert-container {
-  display: flex;
-
-  .grammarly-notification-close-btn > button {
-    background-color: @ol-blue;
-  }
-}
-
 grammarly-extension[data-grammarly-shadow-root='true'] {
   z-index: 1;
+}
+
+.editor-notification {
+  margin: 48px 64px;
+  width: 80%;
+  max-width: 560px;
+}
+
+/* If the container is smaller than 400px */
+@container (max-width: 400px) {
+  .editor-notification {
+    display: none;
+  }
 }

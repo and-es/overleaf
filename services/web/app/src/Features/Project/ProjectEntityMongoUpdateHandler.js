@@ -1,6 +1,5 @@
 const { callbackify } = require('util')
 const { callbackifyMultiResult } = require('@overleaf/promise-utils')
-const _ = require('underscore')
 const logger = require('@overleaf/logger')
 const path = require('path')
 const { ObjectId } = require('mongodb')
@@ -264,8 +263,7 @@ async function replaceFileWithDoc(projectId, fileId, newDoc) {
 async function mkdirp(projectId, path, options = {}) {
   // defaults to case insensitive paths, use options {exactCaseMatch:true}
   // to make matching case-sensitive
-  let folders = path.split('/')
-  folders = _.select(folders, folder => folder.length !== 0)
+  const folders = path.split('/').filter(folder => folder.length !== 0)
 
   const project = await ProjectGetter.promises.getProjectWithOnlyFolders(
     projectId
@@ -568,7 +566,7 @@ async function _putElement(project, folderId, element, type) {
     throw new Errors.InvalidNameError('blocked element name')
   }
   _checkValidElementName(folder, element.name)
-  element._id = ObjectId(element._id.toString())
+  element._id = new ObjectId(element._id.toString())
   const mongoPath = `${path.mongo}.${pathSegment}`
   const newProject = await Project.findOneAndUpdate(
     { _id: project._id, [path.mongo]: { $exists: true } },
