@@ -41,7 +41,7 @@ RUN apt-get update \
 # # docker build \
 #     --build-arg TEXLIVE_MIRROR=https://ctan.crest.fr/tex-archive/systems/texlive/tlnet \
 #     -f Dockerfile-base -t sharelatex/sharelatex-base .
-ARG TEXLIVE_MIRROR=https://mirror.ox.ac.uk/sites/ctan.org/systems/texlive/tlnet
+ARG TEXLIVE_MIRROR=https://ftp.jaist.ac.jp/pub/CTAN/systems/texlive/tlnet
 
 RUN mkdir /install-tl-unx \
 &&  wget --quiet https://tug.org/texlive/files/texlive.asc \
@@ -57,19 +57,13 @@ RUN mkdir /install-tl-unx \
 &&  echo "tlpdbopt_autobackup 0" >> /install-tl-unx/texlive.profile \
 &&  echo "tlpdbopt_install_docfiles 0" >> /install-tl-unx/texlive.profile \
 &&  echo "tlpdbopt_install_srcfiles 0" >> /install-tl-unx/texlive.profile \
-&&  echo "selected_scheme scheme-basic" >> /install-tl-unx/texlive.profile \
+&&  echo "selected_scheme scheme-full" >> /install-tl-unx/texlive.profile \
     \
 &&  /install-tl-unx/install-tl \
       -profile /install-tl-unx/texlive.profile \
       -repository ${TEXLIVE_MIRROR} \
     \
 &&  $(find /usr/local/texlive -name tlmgr) path add \
-&&  tlmgr install --repository ${TEXLIVE_MIRROR} \
-      latexmk \
-      texcount \
-      synctex \
-      etoolbox \
-      xetex \
 &&  tlmgr path add \
 &&  rm -rf /install-tl-unx
 

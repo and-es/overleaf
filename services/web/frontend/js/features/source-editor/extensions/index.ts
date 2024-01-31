@@ -91,7 +91,7 @@ export const createExtensions = (options: Record<string, any>): Extension[] => [
   }),
   keymaps,
   goToLinePanel(),
-  filterCharacters(),
+  // filterCharacters(),
 
   // NOTE: `autoComplete` needs to be before `keybindings` so that arrow key handling
   // in the autocomplete pop-up takes precedence over Vim/Emacs key bindings

@@ -158,8 +158,8 @@ module.exports = UpdateManager = {
       project_id: projectId,
       doc_id: docId,
     })
-    UpdateManager._sanitizeUpdate(update)
-    profile.log('sanitizeUpdate', { sync: true })
+    // UpdateManager._sanitizeUpdate(update)
+    // profile.log('sanitizeUpdate', { sync: true })
     DocumentManager.getDoc(
       projectId,
       docId,
