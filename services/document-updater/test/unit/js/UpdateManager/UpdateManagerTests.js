@@ -12,6 +12,7 @@ describe('UpdateManager', function () {
     this.projectHistoryId = 'history-id-123'
     this.doc_id = 'document-id-123'
     this.lockValue = 'mock-lock-value'
+    this.pathname = '/a/b/c.tex'
 
     this.Metrics = {
       inc: sinon.stub(),
@@ -65,14 +66,20 @@ describe('UpdateManager', function () {
     }
 
     this.RangesManager = {
-      promises: {
-        applyUpdate: sinon.stub(),
-      },
+      applyUpdate: sinon.stub(),
     }
 
     this.SnapshotManager = {
       promises: {
         recordSnapshot: sinon.stub().resolves(),
+      },
+    }
+
+    this.ProjectHistoryRedisManager = {
+      promises: {
+        queueOps: sinon
+          .stub()
+          .callsFake(async (projectId, ...ops) => ops.length),
       },
     }
 
@@ -89,6 +96,7 @@ describe('UpdateManager', function () {
         './RangesManager': this.RangesManager,
         './SnapshotManager': this.SnapshotManager,
         './Profiler': this.Profiler,
+        './ProjectHistoryRedisManager': this.ProjectHistoryRedisManager,
       },
     })
   })
@@ -311,28 +319,32 @@ describe('UpdateManager', function () {
         { v: 42, op: 'mock-op-42' },
         { v: 45, op: 'mock-op-45' },
       ]
+      this.historyUpdates = [
+        'history-update-1',
+        'history-update-2',
+        'history-update-3',
+      ]
       this.project_ops_length = 123
-      this.pathname = '/a/b/c.tex'
       this.DocumentManager.promises.getDoc.resolves({
         lines: this.lines,
         version: this.version,
         ranges: this.ranges,
         pathname: this.pathname,
         projectHistoryId: this.projectHistoryId,
+        historyRangesSupport: false,
       })
-      this.RangesManager.promises.applyUpdate.resolves({
+      this.RangesManager.applyUpdate.returns({
         newRanges: this.updated_ranges,
         rangesWereCollapsed: false,
+        historyUpdates: this.historyUpdates,
       })
       this.ShareJsUpdateManager.promises.applyUpdate = sinon.stub().resolves({
         updatedDocLines: this.updatedDocLines,
         version: this.version,
         appliedOps: this.appliedOps,
       })
-      this.RedisManager.promises.updateDocument.resolves(
-        this.project_ops_length
-      )
-      this.UpdateManager.promises._addProjectHistoryMetadataToOps = sinon.stub()
+      this.RedisManager.promises.updateDocument.resolves()
+      this.UpdateManager.promises._addMetadataToHistoryUpdates = sinon.stub()
     })
 
     describe('normally', function () {
@@ -357,7 +369,7 @@ describe('UpdateManager', function () {
       })
 
       it('should update the ranges', function () {
-        this.RangesManager.promises.applyUpdate
+        this.RangesManager.applyUpdate
           .calledWith(
             this.project_id,
             this.doc_id,
@@ -383,8 +395,8 @@ describe('UpdateManager', function () {
       })
 
       it('should add metadata to the ops', function () {
-        this.UpdateManager.promises._addProjectHistoryMetadataToOps.should.have.been.calledWith(
-          this.appliedOps,
+        this.UpdateManager.promises._addMetadataToHistoryUpdates.should.have.been.calledWith(
+          this.historyUpdates,
           this.pathname,
           this.projectHistoryId,
           this.lines
@@ -392,9 +404,15 @@ describe('UpdateManager', function () {
       })
 
       it('should push the applied ops into the history queue', function () {
-        this.HistoryManager.recordAndFlushHistoryOps
-          .calledWith(this.project_id, this.appliedOps, this.project_ops_length)
-          .should.equal(true)
+        this.ProjectHistoryRedisManager.promises.queueOps.should.have.been.calledWith(
+          this.project_id,
+          ...this.historyUpdates.map(op => JSON.stringify(op))
+        )
+        this.HistoryManager.recordAndFlushHistoryOps.should.have.been.calledWith(
+          this.project_id,
+          this.historyUpdates,
+          this.historyUpdates.length
+        )
       })
     })
 
@@ -444,9 +462,10 @@ describe('UpdateManager', function () {
 
     describe('when ranges get collapsed', function () {
       beforeEach(async function () {
-        this.RangesManager.promises.applyUpdate.resolves({
+        this.RangesManager.applyUpdate.returns({
           newRanges: this.updated_ranges,
           rangesWereCollapsed: true,
+          historyUpdates: this.historyUpdates,
         })
         await this.UpdateManager.promises.applyUpdate(
           this.project_id,
@@ -472,15 +491,46 @@ describe('UpdateManager', function () {
           .should.equal(true)
       })
     })
+
+    describe('when history ranges are supported', function () {
+      beforeEach(async function () {
+        this.DocumentManager.promises.getDoc.resolves({
+          lines: this.lines,
+          version: this.version,
+          ranges: this.ranges,
+          pathname: this.pathname,
+          projectHistoryId: this.projectHistoryId,
+          historyRangesSupport: true,
+        })
+        await this.UpdateManager.promises.applyUpdate(
+          this.project_id,
+          this.doc_id,
+          this.update
+        )
+      })
+
+      it('should push the history updates into the history queue', function () {
+        this.ProjectHistoryRedisManager.promises.queueOps.should.have.been.calledWith(
+          this.project_id,
+          ...this.historyUpdates.map(op => JSON.stringify(op))
+        )
+        this.HistoryManager.recordAndFlushHistoryOps.should.have.been.calledWith(
+          this.project_id,
+          this.historyUpdates,
+          this.historyUpdates.length
+        )
+      })
+    })
   })
 
-  describe('_addProjectHistoryMetadataToOps', function () {
+  describe('_addMetadataToHistoryUpdates', function () {
     it('should add projectHistoryId, pathname and doc_length metadata to the ops', function () {
       const lines = ['some', 'test', 'data']
-      const appliedOps = [
+      const historyUpdates = [
         {
           v: 42,
           op: [
+            { i: 'bing', p: 12, trackedDeleteRejection: true },
             { i: 'foo', p: 4 },
             { i: 'bar', p: 6 },
           ],
@@ -490,27 +540,45 @@ describe('UpdateManager', function () {
           op: [
             { d: 'qux', p: 4 },
             { i: 'bazbaz', p: 14 },
+            { d: 'bong', p: 28, u: true },
           ],
+          meta: {
+            tc: 'tracking-info',
+          },
+        },
+        {
+          v: 47,
+          op: [{ d: 'so', p: 0 }],
         },
         { v: 49, op: [{ i: 'penguin', p: 18 }] },
       ]
-      this.UpdateManager._addProjectHistoryMetadataToOps(
-        appliedOps,
+      const ranges = {
+        changes: [
+          { op: { d: 'bingbong', p: 12 } },
+          { op: { i: 'test', p: 5 } },
+        ],
+      }
+      this.UpdateManager._addMetadataToHistoryUpdates(
+        historyUpdates,
         this.pathname,
         this.projectHistoryId,
-        lines
+        lines,
+        ranges,
+        true
       )
-      appliedOps.should.deep.equal([
+      historyUpdates.should.deep.equal([
         {
           projectHistoryId: this.projectHistoryId,
           v: 42,
           op: [
+            { i: 'bing', p: 12, trackedDeleteRejection: true },
             { i: 'foo', p: 4 },
             { i: 'bar', p: 6 },
           ],
           meta: {
             pathname: this.pathname,
             doc_length: 14,
+            history_doc_length: 22,
           },
         },
         {
@@ -519,11 +587,24 @@ describe('UpdateManager', function () {
           op: [
             { d: 'qux', p: 4 },
             { i: 'bazbaz', p: 14 },
+            { d: 'bong', p: 28, u: true },
           ],
           meta: {
             pathname: this.pathname,
-            doc_length: 20,
-          }, // 14 + 'foo' + 'bar'
+            doc_length: 24, // 14 + 'bing' + 'foo' + 'bar'
+            history_doc_length: 28, // 22 + 'foo' + 'bar'
+            tc: 'tracking-info',
+          },
+        },
+        {
+          projectHistoryId: this.projectHistoryId,
+          v: 47,
+          op: [{ d: 'so', p: 0 }],
+          meta: {
+            pathname: this.pathname,
+            doc_length: 23, // 24 - 'qux' + 'bazbaz' - 'bong'
+            history_doc_length: 30, // 28 - 'bong' + 'bazbaz'
+          },
         },
         {
           projectHistoryId: this.projectHistoryId,
@@ -531,8 +612,9 @@ describe('UpdateManager', function () {
           op: [{ i: 'penguin', p: 18 }],
           meta: {
             pathname: this.pathname,
-            doc_length: 23,
-          }, // 14 - 'qux' + 'bazbaz'
+            doc_length: 21, // 23 - 'so'
+            history_doc_length: 28, // 30 - 'so'
+          },
         },
       ])
     })

@@ -20,10 +20,11 @@ html(
 
 		block _headLinks
 
-		if settings.i18n.subdomainLang
-			each subdomainDetails in settings.i18n.subdomainLang
-				if !subdomainDetails.hide
-					link(rel="alternate", href=subdomainDetails.url+currentUrl, hreflang=subdomainDetails.lngCode)
+		if (typeof(suppressRelAlternateLinks) == "undefined")
+			if settings.i18n.subdomainLang
+				each subdomainDetails in settings.i18n.subdomainLang
+					if !subdomainDetails.hide
+						link(rel="alternate", href=subdomainDetails.url+currentUrl, hreflang=subdomainDetails.lngCode)
 		
 		if (entrypoint !== 'marketing')
 			link(rel="preload", href=buildJsPath(currentLngCode + "-json.js"), as="script", nonce=scriptNonce)
@@ -36,12 +37,9 @@ html(
 			//- Configure dynamically loaded assets (via webpack) to be downloaded from CDN
 			//- See: https://webpack.js.org/guides/public-path/#on-the-fly
 			meta(name="ol-baseAssetPath" content=buildBaseAssetPath())
+			meta(name="ol-mathJaxPath" content=mathJaxPath)
 
 			meta(name="ol-usersEmail" content=getUserEmail())
-			meta(name="ol-sharelatex" data-type="json" content={
-				siteUrl: settings.siteUrl,
-				wsUrl,
-			})
 			meta(name="ol-ab" data-type="json" content={})
 			meta(name="ol-user_id" content=getLoggedInUserId())
 			//- Internationalisation settings
@@ -60,16 +58,10 @@ html(
 					indexes: settings.algolia.indexes
 				})
 
-			if (typeof(settings.templates) != "undefined")
-				meta(name="ol-sharelatex.templates" data-type="json" content={
-					user_id : settings.templates.user_id,
-					cdnDomain : settings.templates.cdnDomain,
-					indexName : settings.templates.indexName
-				})
-
 			meta(name="ol-isManagedAccount" data-type="boolean" content=isManagedAccount)
 			each restriction in userRestrictions || []
 				meta(name='ol-cannot-' + restriction data-type="boolean" content=true)
+			meta(name="ol-bootstrapVersion" data-type="json" content=bootstrapVersion)
 
 		block head-scripts
 

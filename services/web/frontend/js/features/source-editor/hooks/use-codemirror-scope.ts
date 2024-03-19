@@ -43,17 +43,22 @@ import {
 import {
   createChangeManager,
   dispatchEditorEvent,
+  reviewPanelToggled,
 } from '../extensions/changes/change-manager'
 import { setKeybindings } from '../extensions/keybindings'
 import { Highlight } from '../../../../../types/highlight'
 import { EditorView } from '@codemirror/view'
-import { CurrentDoc } from '../../../../../types/current-doc'
 import { useErrorHandler } from 'react-error-boundary'
 import { setVisual } from '../extensions/visual/visual'
 import { useFileTreePathContext } from '@/features/file-tree/contexts/file-tree-path'
 import { useUserSettingsContext } from '@/shared/context/user-settings-context'
 import { setDocName } from '@/features/source-editor/extensions/doc-name'
 import isValidTexFile from '@/main/is-valid-tex-file'
+import { captureException } from '@/infrastructure/error-reporter'
+import grammarlyExtensionPresent from '@/shared/utils/grammarly'
+import { DocumentContainer } from '@/features/ide-react/editor/document-container'
+import { useLayoutContext } from '@/shared/context/layout-context'
+import { debugConsole } from '@/utils/debugging'
 
 function useCodeMirrorScope(view: EditorView) {
   const ide = useIdeContext()
@@ -67,9 +72,13 @@ function useCodeMirrorScope(view: EditorView) {
   const { logEntryAnnotations, editedSinceCompileStarted, compiling } =
     useCompileContext()
 
+  const { reviewPanelOpen, miniReviewPanelVisible } = useLayoutContext()
+
   const [loadingThreads] = useScopeValue<boolean>('loadingThreads')
 
-  const [currentDoc] = useScopeValue<CurrentDoc | null>('editor.sharejs_doc')
+  const [currentDoc] = useScopeValue<DocumentContainer | null>(
+    'editor.sharejs_doc'
+  )
   const [docName] = useScopeValue<string>('editor.open_doc_name')
   const [trackChanges] = useScopeValue<boolean>('editor.trackChanges')
 
@@ -241,17 +250,37 @@ function useCodeMirrorScope(view: EditorView) {
 
   const { previewByPath } = useFileTreePathContext()
 
+  const showVisual = visual && isValidTexFile(docName)
+
   const visualRef = useRef({
     previewByPath,
-    visual,
+    visual: showVisual,
   })
 
   const handleError = useErrorHandler()
+
+  const handleException = useCallback((exception: any) => {
+    captureException(exception, {
+      tags: {
+        handler: 'cm6-exception',
+        // which editor mode is active ('visual' | 'code')
+        ol_editor_mode: visualRef.current.visual ? 'visual' : 'code',
+        // which editor keybindings are active ('default' | 'vim' | 'emacs')
+        ol_editor_keybindings: settingsRef.current.mode,
+        // whether Writefull is present ('extension' | 'integration' | 'none')
+        ol_extensions_writefull: window.writefull?.type ?? 'none',
+        // whether Grammarly is present
+        ol_extensions_grammarly: grammarlyExtensionPresent(),
+      },
+    })
+  }, [])
 
   // create a new state when currentDoc changes
 
   useEffect(() => {
     if (currentDoc) {
+      debugConsole.log('creating new editor state')
+
       const state = EditorState.create({
         doc: currentDoc.getSnapshot(),
         extensions: createExtensions({
@@ -268,6 +297,7 @@ function useCodeMirrorScope(view: EditorView) {
           visual: visualRef.current,
           changeManager: createChangeManager(view, currentDoc),
           handleError,
+          handleException,
         }),
       })
       view.setState(state)
@@ -297,7 +327,7 @@ function useCodeMirrorScope(view: EditorView) {
     }
     // IMPORTANT: This effect must not depend on anything variable apart from currentDoc,
     // as the editor state is recreated when the effect runs.
-  }, [view, currentDoc, handleError])
+  }, [view, currentDoc, handleError, handleException])
 
   useEffect(() => {
     if (docName) {
@@ -313,8 +343,6 @@ function useCodeMirrorScope(view: EditorView) {
       )
     }
   }, [view, docName])
-
-  const showVisual = visual && isValidTexFile(docName)
 
   useEffect(() => {
     visualRef.current.visual = showVisual
@@ -494,6 +522,10 @@ function useCodeMirrorScope(view: EditorView) {
   }, [view])
 
   useEventListener('learnedWords:reset', handleResetLearnedWords)
+
+  useEffect(() => {
+    view.dispatch(reviewPanelToggled())
+  }, [reviewPanelOpen, miniReviewPanelVisible, view])
 }
 
 export default useCodeMirrorScope

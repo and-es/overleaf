@@ -1,17 +1,18 @@
 const { ForbiddenError, UserNotFoundError } = require('../Errors/Errors')
 const {
-  hasPermission,
   getUserCapabilities,
   getUserRestrictions,
 } = require('./PermissionsManager')
+const { checkUserPermissions } = require('./PermissionsManager').promises
 const Modules = require('../../infrastructure/Modules')
+const { expressify } = require('@overleaf/promise-utils')
 
 /**
  * Function that returns middleware to add an `assertPermission` function to the request object to check if the user has a specific capability.
  * @returns {Function} The middleware function that adds the `assertPermission` function to the request object.
  */
 function useCapabilities() {
-  return async function (req, res, next) {
+  const middleware = async function (req, res, next) {
     // attach the user's capabilities to the request object
     req.capabilitySet = new Set()
     // provide a function to assert that a capability is present
@@ -57,6 +58,7 @@ function useCapabilities() {
       }
     }
   }
+  return expressify(middleware)
 }
 
 /**
@@ -76,26 +78,7 @@ function requirePermission(...requiredCapabilities) {
       return next(new Error('no user'))
     }
     try {
-      const result =
-        (
-          await Modules.promises.hooks.fire(
-            'getManagedUsersEnrollmentForUser',
-            req.user
-          )
-        )[0] || {}
-      const { groupPolicy, managedUsersEnabled } = result
-      if (!managedUsersEnabled) {
-        return next()
-      }
-      // check that the user has all the required capabilities
-      for (const requiredCapability of requiredCapabilities) {
-        // if the user has the permission, continue
-        if (!hasPermission(groupPolicy, requiredCapability)) {
-          throw new ForbiddenError(
-            `user does not have permission for ${requiredCapability}`
-          )
-        }
-      }
+      await checkUserPermissions(req.user, requiredCapabilities)
       next()
     } catch (error) {
       next(error)

@@ -25,6 +25,12 @@ const entryPoints = {
   'main-style': './frontend/stylesheets/main-style.less',
   'main-ieee-style': './frontend/stylesheets/main-ieee-style.less',
   'main-light-style': './frontend/stylesheets/main-light-style.less',
+  'main-style-bootstrap-5':
+    './frontend/stylesheets/bootstrap-5/main-style.scss',
+  'main-ieee-style-bootstrap-5':
+    './frontend/stylesheets/bootstrap-5/main-ieee-style.scss',
+  'main-light-style-bootstrap-5':
+    './frontend/stylesheets/bootstrap-5/main-light-style.scss',
 }
 
 // Add entrypoints for each "page"
@@ -64,7 +70,6 @@ function getModuleDirectory(moduleName) {
 }
 
 const mathjaxDir = getModuleDirectory('mathjax')
-const mathjax3Dir = getModuleDirectory('mathjax-3')
 
 const pdfjsVersions = ['pdfjs-dist213', 'pdfjs-dist401']
 
@@ -74,13 +79,6 @@ const MATHJAX_VERSION = require('mathjax/package.json').version
 if (MATHJAX_VERSION !== PackageVersions.version.mathjax) {
   throw new Error(
     '"mathjax" version de-synced, update services/web/app/src/infrastructure/PackageVersions.js'
-  )
-}
-
-const MATHJAX_3_VERSION = require('mathjax-3/package.json').version
-if (MATHJAX_3_VERSION !== PackageVersions.version['mathjax-3']) {
-  throw new Error(
-    '"mathjax-3" version de-synced, update services/web/app/src/infrastructure/PackageVersions.js'
   )
 }
 
@@ -176,6 +174,46 @@ module.exports = {
         ],
       },
       {
+        // Pass Sass files through sass-loader/css-loader/mini-css-extract-
+        // plugin (note: run in reverse order)
+        test: /\.s[ac]ss$/,
+        use: [
+          // Allows the CSS to be extracted to a separate .css file
+          { loader: MiniCssExtractPlugin.loader },
+          // Resolves any CSS dependencies (e.g. url())
+          { loader: 'css-loader' },
+          // Resolve relative paths sensibly in SASS
+          { loader: 'resolve-url-loader' },
+          {
+            // Runs autoprefixer on CSS via postcss
+            loader: 'postcss-loader',
+            options: {
+              postcssOptions: {
+                plugins: ['autoprefixer'],
+              },
+            },
+          },
+          // Compile Sass off the main event loop
+          {
+            loader: 'thread-loader',
+            options: {
+              // keep workers alive for dev-server, and shut them down when not needed
+              poolTimeout:
+                process.env.NODE_ENV === 'development' ? 10 * 60 * 1000 : 500,
+              // bring up more workers after they timed out
+              poolRespawn: true,
+              // limit concurrency (one per entrypoint and let the small includes queue up)
+              workers: 6,
+            },
+          },
+          // Compiles Sass to CSS
+          {
+            loader: 'sass-loader',
+            options: { sourceMap: true }, // sourceMap: true is required for resolve-url-loader
+          },
+        ],
+      },
+      {
         // Pass CSS files through css-loader & mini-css-extract-plugin (note: run in reverse order)
         test: /\.css$/i,
         use: [MiniCssExtractPlugin.loader, 'css-loader'],
@@ -240,6 +278,9 @@ module.exports = {
     extensions: ['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.json'],
     fallback: {
       events: require.resolve('events'),
+      // for react-dnd + React 17
+      'react/jsx-runtime': 'react/jsx-runtime.js',
+      'react/jsx-dev-runtime': 'react/jsx-dev-runtime.js',
     },
   },
 
@@ -274,57 +315,38 @@ module.exports = {
         // https://www.npmjs.com/package/mathjax#user-content-hosting-your-own-copy-of-the-mathjax-components
         {
           from: 'es5/tex-svg-full.js',
-          to: `js/libs/mathjax-3-${PackageVersions.version['mathjax-3']}/es5`,
+          to: `js/libs/mathjax-${PackageVersions.version.mathjax}/es5`,
           toType: 'dir',
-          context: mathjax3Dir,
+          context: mathjaxDir,
         },
         {
           from: 'es5/input/tex/extensions/**/*.js',
-          to: `js/libs/mathjax-3-${PackageVersions.version['mathjax-3']}`,
+          to: `js/libs/mathjax-${PackageVersions.version.mathjax}`,
           toType: 'dir',
-          context: mathjax3Dir,
+          context: mathjaxDir,
         },
         {
           from: 'es5/ui/**/*',
-          to: `js/libs/mathjax-3-${PackageVersions.version['mathjax-3']}`,
+          to: `js/libs/mathjax-${PackageVersions.version.mathjax}`,
           toType: 'dir',
-          context: mathjax3Dir,
-        },
-        { from: 'MathJax.js', to: 'js/libs/mathjax', context: mathjaxDir },
-        { from: 'config/**/*', to: 'js/libs/mathjax', context: mathjaxDir },
-        {
-          from: 'extensions/**/*',
-          globOptions: {
-            // https://github.com/mathjax/MathJax/issues/2403
-            ignore: ['**/mathmaps/*.js'],
-          },
-          to: 'js/libs/mathjax',
           context: mathjaxDir,
         },
         {
-          from: 'localization/en/**/*',
-          to: 'js/libs/mathjax',
+          from: 'es5/a11y/**/*',
+          to: `js/libs/mathjax-${PackageVersions.version.mathjax}`,
+          toType: 'dir',
           context: mathjaxDir,
         },
         {
-          from: 'jax/output/HTML-CSS/fonts/TeX/**/*',
-          to: 'js/libs/mathjax',
+          from: 'es5/input/mml.js',
+          to: `js/libs/mathjax-${PackageVersions.version.mathjax}/es5/input`,
+          toType: 'dir',
           context: mathjaxDir,
         },
         {
-          from: 'jax/output/HTML-CSS/**/*.js',
-          to: 'js/libs/mathjax',
-          context: mathjaxDir,
-        },
-        {
-          from: 'jax/element/**/*',
-          to: 'js/libs/mathjax',
-          context: mathjaxDir,
-        },
-        { from: 'jax/input/**/*', to: 'js/libs/mathjax', context: mathjaxDir },
-        {
-          from: 'fonts/HTML-CSS/TeX/woff/*',
-          to: 'js/libs/mathjax',
+          from: 'es5/sre/**/*',
+          to: `js/libs/mathjax-${PackageVersions.version.mathjax}`,
+          toType: 'dir',
           context: mathjaxDir,
         },
         ...pdfjsVersions.flatMap(version => {

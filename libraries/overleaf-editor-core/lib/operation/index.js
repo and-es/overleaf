@@ -29,16 +29,20 @@ class Operation {
    * @return {Operation} one of the subclasses
    */
   static fromRaw(raw) {
-    if (Object.prototype.hasOwnProperty.call(raw, 'file')) {
+    if ('file' in raw) {
       return AddFileOperation.fromRaw(raw)
     }
-    if (Object.prototype.hasOwnProperty.call(raw, 'textOperation')) {
+    if (
+      'textOperation' in raw ||
+      'commentId' in raw ||
+      'deleteComment' in raw
+    ) {
       return EditFileOperation.fromRaw(raw)
     }
-    if (Object.prototype.hasOwnProperty.call(raw, 'newPathname')) {
+    if ('newPathname' in raw) {
       return new MoveFileOperation(raw.pathname, raw.newPathname)
     }
-    if (Object.prototype.hasOwnProperty.call(raw, 'metadata')) {
+    if ('metadata' in raw) {
       return new SetFileMetadataOperation(raw.pathname, raw.metadata)
     }
     if (_.isEmpty(raw)) {
@@ -160,7 +164,7 @@ class Operation {
    * @return {Operation[]} operations `[a', b']`
    */
   static transform(a, b) {
-    if (a.isNoOp() || b.isNoOp()) return [b, a]
+    if (a.isNoOp() || b.isNoOp()) return [a, b]
 
     function transpose(transformer) {
       return transformer(b, a).reverse()

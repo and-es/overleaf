@@ -22,10 +22,9 @@ import './modules/errorCatcher'
 import './modules/localStorage'
 import './modules/sessionStorage'
 import getMeta from './utils/meta'
-import { configureMathJax } from './features/mathjax/configure'
 
 const App = angular
-  .module('SharelatexApp', [
+  .module('OverleafApp', [
     'ui.bootstrap',
     'RecursionHelper',
     'ngSanitize',
@@ -40,8 +39,6 @@ const App = angular
     function ($qProvider, uiSelectConfig) {
       $qProvider.errorOnUnhandledRejections(false)
       uiSelectConfig.spinnerClass = 'fa fa-refresh ui-select-spin'
-
-      configureMathJax()
     },
   ])
 

@@ -5,24 +5,29 @@ const assert = require('check-types').assert
 
 const FileData = require('./')
 const CommentList = require('./comment_list')
+const TrackedChangeList = require('./tracked_change_list')
 
 /**
  * @typedef {import("../types").StringFileRawData} StringFileRawData
  * @typedef {import("../operation/edit_operation")} EditOperation
  * @typedef {import("../types").BlobStore} BlobStore
- * @typedef {import("../types").CommentRawData} CommentRawData
+ * @typedef {import("../types").CommentsListRawData} CommentsListRawData
+ * @typedef {import("../types").TrackedChangeRawData} TrackedChangeRawData
+ * @typedef {import('../types').RangesBlob} RangesBlob
  */
 
 class StringFileData extends FileData {
   /**
    * @param {string} content
-   * @param {CommentRawData[]} [rawComments]
+   * @param {CommentsListRawData} [rawComments]
+   * @param {TrackedChangeRawData[]} [rawTrackedChanges]
    */
-  constructor(content, rawComments = []) {
+  constructor(content, rawComments = [], rawTrackedChanges = []) {
     super()
     assert.string(content)
     this.content = content
     this.comments = CommentList.fromRaw(rawComments)
+    this.trackedChanges = TrackedChangeList.fromRaw(rawTrackedChanges)
   }
 
   /**
@@ -30,7 +35,11 @@ class StringFileData extends FileData {
    * @returns {StringFileData}
    */
   static fromRaw(raw) {
-    return new StringFileData(raw.content, raw.comments || [])
+    return new StringFileData(
+      raw.content,
+      raw.comments || [],
+      raw.trackedChanges || []
+    )
   }
 
   /**
@@ -45,6 +54,10 @@ class StringFileData extends FileData {
       raw.comments = comments
     }
 
+    if (this.trackedChanges.length) {
+      raw.trackedChanges = this.trackedChanges.toRaw()
+    }
+
     return raw
   }
 
@@ -53,9 +66,29 @@ class StringFileData extends FileData {
     return true
   }
 
-  /** @inheritdoc */
-  getContent() {
-    return this.content
+  /**
+   * @inheritdoc
+   * @param {import('../file').FileGetContentOptions} [opts]
+   */
+  getContent(opts = {}) {
+    let content = ''
+    let cursor = 0
+    if (opts.filterTrackedDeletes) {
+      for (const tc of this.trackedChanges.trackedChanges) {
+        if (tc.tracking.type !== 'delete') {
+          continue
+        }
+        if (cursor < tc.range.start) {
+          content += this.content.slice(cursor, tc.range.start)
+        }
+        // skip the tracked change
+        cursor = tc.range.end
+      }
+    }
+    if (cursor < this.content.length) {
+      content += this.content.slice(cursor)
+    }
+    return content
   }
 
   /** @inheritdoc */
@@ -99,6 +132,15 @@ class StringFileData extends FileData {
    */
   async store(blobStore) {
     const blob = await blobStore.putString(this.content)
+    if (this.comments.comments.size || this.trackedChanges.length) {
+      /** @type {RangesBlob} */
+      const ranges = {
+        comments: this.getComments(),
+        trackedChanges: this.trackedChanges.toRaw(),
+      }
+      const rangesBlob = await blobStore.putObject(ranges)
+      return { hash: blob.getHash(), rangesHash: rangesBlob.getHash() }
+    }
     return { hash: blob.getHash() }
   }
 }

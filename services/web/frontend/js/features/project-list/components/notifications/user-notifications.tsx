@@ -4,22 +4,15 @@ import Institution from './groups/institution'
 import ConfirmEmail from './groups/confirm-email'
 import ReconfirmationInfo from './groups/affiliation/reconfirmation-info'
 import GroupsAndEnterpriseBanner from './groups-and-enterprise-banner'
-import WritefullPromoBanner from './writefull-promo-banner'
 import WritefullPremiumPromoBanner from './writefull-premium-promo-banner'
 import GroupSsoSetupSuccess from './groups/group-sso-setup-success'
 import INRBanner from './ads/inr-banner'
-import LATAMBanner from './ads/latam-banner'
 import getMeta from '../../../../utils/meta'
 import importOverleafModules from '../../../../../macros/import-overleaf-module.macro'
 import customLocalStorage from '../../../../infrastructure/local-storage'
 import { sendMB } from '../../../../infrastructure/event-tracking'
 import classNames from 'classnames'
-import { isSplitTestEnabled } from '@/utils/splitTestUtils'
-
-const isChromium = () =>
-  (window.navigator as any).userAgentData?.brands?.some(
-    (item: { brand: string }) => item.brand === 'Chromium'
-  )
+import BRLBanner from './ads/brl-banner'
 
 type Subscription = {
   groupId: string
@@ -43,17 +36,8 @@ function UserNotifications() {
     'ol-groupSubscriptionsPendingEnrollment',
     []
   )
-
   const showInrGeoBanner = getMeta('ol-showInrGeoBanner', false)
-  const inrGeoBannerVariant = getMeta('ol-inrGeoBannerVariant', 'default')
-  const inrGeoBannerSplitTestName = getMeta(
-    'ol-inrGeoBannerSplitTestName',
-    'unassigned'
-  )
-  const showLATAMBanner = getMeta('ol-showLATAMBanner', false)
-  const writefullIntegrationSplitTestEnabled = isSplitTestEnabled(
-    'writefull-integration'
-  )
+  const showBrlGeoBanner = getMeta('ol-showBrlGeoBanner', false)
   const user = getMeta('ol-user')
 
   // Temporary workaround to prevent also showing groups/enterprise banner
@@ -66,20 +50,14 @@ function UserNotifications() {
     }
 
     const show =
-      user?.writefull?.enabled === true || // show to any users who have writefull enabled regardless of split test
-      (!writefullIntegrationSplitTestEnabled && // show old banner to users who are not in the split test, who are on chrome and havent dismissed
-        isChromium() &&
-        getMeta('ol-showWritefullPromoBanner'))
+      user?.writefull?.enabled === true ||
+      window.writefull?.type === 'extension'
 
     if (show) {
       sendMB('promo-prompt', {
         location: 'dashboard-banner',
         page: '/project',
-        name:
-          user?.writefull?.enabled === true ||
-          writefullIntegrationSplitTestEnabled
-            ? 'writefull-premium'
-            : 'writefull',
+        name: 'writefull-premium',
       })
     }
 
@@ -107,35 +85,17 @@ function UserNotifications() {
         <Institution />
         <ConfirmEmail />
         <ReconfirmationInfo />
-        {!showLATAMBanner &&
-          !showInrGeoBanner &&
-          !showWritefull &&
-          !dismissedWritefull && <GroupsAndEnterpriseBanner />}
-        {showLATAMBanner ? (
-          <LATAMBanner />
-        ) : showInrGeoBanner ? (
-          <INRBanner
-            variant={inrGeoBannerVariant}
-            splitTestName={inrGeoBannerSplitTestName}
-          />
-        ) : null}
-        {writefullIntegrationSplitTestEnabled || user?.writefull?.enabled ? (
-          <WritefullPremiumPromoBanner
-            show={showWritefull}
-            setShow={setShowWritefull}
-            onDismiss={() => {
-              setDismissedWritefull(true)
-            }}
-          />
-        ) : (
-          <WritefullPromoBanner
-            show={showWritefull}
-            setShow={setShowWritefull}
-            onDismiss={() => {
-              setDismissedWritefull(true)
-            }}
-          />
-        )}
+        {!showWritefull && !dismissedWritefull && <GroupsAndEnterpriseBanner />}
+        {showInrGeoBanner && <INRBanner />}
+
+        <WritefullPremiumPromoBanner
+          show={showWritefull}
+          setShow={setShowWritefull}
+          onDismiss={() => {
+            setDismissedWritefull(true)
+          }}
+        />
+        {showBrlGeoBanner && <BRLBanner />}
       </ul>
     </div>
   )

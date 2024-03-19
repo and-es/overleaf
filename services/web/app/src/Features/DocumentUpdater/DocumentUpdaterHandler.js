@@ -6,6 +6,7 @@ const async = require('async')
 const logger = require('@overleaf/logger')
 const metrics = require('@overleaf/metrics')
 const { promisify } = require('util')
+const { promisifyMultiResult } = require('@overleaf/promise-utils')
 
 module.exports = {
   flushProjectToMongo,
@@ -27,7 +28,12 @@ module.exports = {
     flushProjectToMongoAndDelete: promisify(flushProjectToMongoAndDelete),
     flushDocToMongo: promisify(flushDocToMongo),
     deleteDoc: promisify(deleteDoc),
-    getDocument: promisify(getDocument),
+    getDocument: promisifyMultiResult(getDocument, [
+      'lines',
+      'version',
+      'ranges',
+      'ops',
+    ]),
     setDocument: promisify(setDocument),
     getProjectDocsIfMatch: promisify(getProjectDocsIfMatch),
     clearProjectState: promisify(clearProjectState),
@@ -206,11 +212,14 @@ function acceptChanges(projectId, docId, changeIds, callback) {
   )
 }
 
-function deleteThread(projectId, docId, threadId, callback) {
+function deleteThread(projectId, docId, threadId, userId, callback) {
   _makeRequest(
     {
       path: `/project/${projectId}/doc/${docId}/comment/${threadId}`,
       method: 'DELETE',
+      json: {
+        user_id: userId,
+      },
     },
     projectId,
     'delete-thread',

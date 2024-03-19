@@ -14,6 +14,7 @@ const StringFileData = require('./file_data/string_file_data')
  * @typedef {import("./types").StringFileRawData} StringFileRawData
  * @typedef {import("./types").CommentRawData} CommentRawData
  * @typedef {import("./operation/text_operation")} TextOperation
+ * @typedef {{filterTrackedDeletes?: boolean}} FileGetContentOptions
  */
 
 class NotEditableError extends OError {
@@ -67,11 +68,12 @@ class File {
 
   /**
    * @param  {string} hash
+   * @param  {string} [rangesHash]
    * @param  {Object} [metadata]
    * @return {File}
    */
-  static fromHash(hash, metadata) {
-    return new File(new HashFileData(hash), metadata)
+  static fromHash(hash, rangesHash, metadata) {
+    return new File(new HashFileData(hash, rangesHash), metadata)
   }
 
   /**
@@ -95,11 +97,12 @@ class File {
 
   /**
    * @param {Blob} blob
+   * @param {Blob} [blob]
    * @param {Object} [metadata]
    * @return {File}
    */
-  static createLazyFromBlob(blob, metadata) {
-    return new File(FileData.createLazyFromBlob(blob), metadata)
+  static createLazyFromBlobs(blob, rangesBlob, metadata) {
+    return new File(FileData.createLazyFromBlobs(blob, rangesBlob), metadata)
   }
 
   toRaw() {
@@ -118,13 +121,24 @@ class File {
   }
 
   /**
-   * The content of the file, if it is known and if this file has UTF-8 encoded
-   * content.
+   * Hexadecimal SHA-1 hash of the ranges content (comments + tracked changes),
+   * if known.
    *
    * @return {string | null | undefined}
    */
-  getContent() {
-    return this.data.getContent()
+  getRangesHash() {
+    return this.data.getRangesHash()
+  }
+
+  /**
+   * The content of the file, if it is known and if this file has UTF-8 encoded
+   * content.
+   *
+   * @param {FileGetContentOptions} [opts]
+   * @return {string | null | undefined}
+   */
+  getContent(opts = {}) {
+    return this.data.getContent(opts)
   }
 
   /**

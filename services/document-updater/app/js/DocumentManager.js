@@ -29,7 +29,10 @@ const DocumentManager = {
         ranges,
         pathname,
         projectHistoryId,
-        unflushedTime
+        unflushedTime,
+        lastUpdatedAt,
+        lastUpdatedBy,
+        historyRangesSupport
       ) => {
         if (error) {
           return callback(error)
@@ -42,7 +45,15 @@ const DocumentManager = {
           PersistenceManager.getDoc(
             projectId,
             docId,
-            (error, lines, version, ranges, pathname, projectHistoryId) => {
+            (
+              error,
+              lines,
+              version,
+              ranges,
+              pathname,
+              projectHistoryId,
+              historyRangesSupport
+            ) => {
               if (error) {
                 return callback(error)
               }
@@ -54,6 +65,7 @@ const DocumentManager = {
                   version,
                   pathname,
                   projectHistoryId,
+                  historyRangesSupport,
                 },
                 'got doc from persistence API'
               )
@@ -65,6 +77,7 @@ const DocumentManager = {
                 ranges,
                 pathname,
                 projectHistoryId,
+                historyRangesSupport,
                 error => {
                   if (error) {
                     return callback(error)
@@ -77,7 +90,8 @@ const DocumentManager = {
                     pathname,
                     projectHistoryId,
                     null,
-                    false
+                    false,
+                    historyRangesSupport
                   )
                 }
               )
@@ -92,7 +106,8 @@ const DocumentManager = {
             pathname,
             projectHistoryId,
             unflushedTime,
-            true
+            true,
+            historyRangesSupport
           )
         }
       }
@@ -380,31 +395,34 @@ const DocumentManager = {
             new Errors.NotFoundError(`document not found: ${docId}`)
           )
         }
-        RangesManager.acceptChanges(changeIds, ranges, (error, newRanges) => {
-          if (error) {
-            return callback(error)
-          }
-          RedisManager.updateDocument(
-            projectId,
-            docId,
-            lines,
-            version,
-            [],
-            newRanges,
-            {},
-            error => {
-              if (error) {
-                return callback(error)
-              }
-              callback()
+
+        let newRanges
+        try {
+          newRanges = RangesManager.acceptChanges(changeIds, ranges)
+        } catch (err) {
+          return callback(err)
+        }
+
+        RedisManager.updateDocument(
+          projectId,
+          docId,
+          lines,
+          version,
+          [],
+          newRanges,
+          {},
+          error => {
+            if (error) {
+              return callback(error)
             }
-          )
-        })
+            callback()
+          }
+        )
       }
     )
   },
 
-  deleteComment(projectId, docId, commentId, _callback) {
+  deleteComment(projectId, docId, commentId, userId, _callback) {
     const timer = new Metrics.Timer('docManager.deleteComment')
     const callback = (...args) => {
       timer.done()
@@ -414,7 +432,17 @@ const DocumentManager = {
     DocumentManager.getDoc(
       projectId,
       docId,
-      (error, lines, version, ranges) => {
+      (
+        error,
+        lines,
+        version,
+        ranges,
+        pathname,
+        projectHistoryId,
+        unflushedTime,
+        alreadyLoaded,
+        historyRangesSupport
+      ) => {
         if (error) {
           return callback(error)
         }
@@ -423,26 +451,49 @@ const DocumentManager = {
             new Errors.NotFoundError(`document not found: ${docId}`)
           )
         }
-        RangesManager.deleteComment(commentId, ranges, (error, newRanges) => {
-          if (error) {
-            return callback(error)
-          }
-          RedisManager.updateDocument(
-            projectId,
-            docId,
-            lines,
-            version,
-            [],
-            newRanges,
-            {},
-            error => {
-              if (error) {
-                return callback(error)
-              }
+
+        let newRanges
+        try {
+          newRanges = RangesManager.deleteComment(commentId, ranges)
+        } catch (err) {
+          return callback(err)
+        }
+
+        RedisManager.updateDocument(
+          projectId,
+          docId,
+          lines,
+          version,
+          [],
+          newRanges,
+          {},
+          error => {
+            if (error) {
+              return callback(error)
+            }
+            if (historyRangesSupport) {
+              ProjectHistoryRedisManager.queueOps(
+                projectId,
+                JSON.stringify({
+                  pathname,
+                  deleteComment: commentId,
+                  meta: {
+                    ts: new Date(),
+                    user_id: userId,
+                  },
+                }),
+                error => {
+                  if (error) {
+                    return callback(error)
+                  }
+                  callback()
+                }
+              )
+            } else {
               callback()
             }
-          )
-        })
+          }
+        )
       }
     )
   },
@@ -638,13 +689,14 @@ const DocumentManager = {
     )
   },
 
-  deleteCommentWithLock(projectId, docId, threadId, callback) {
+  deleteCommentWithLock(projectId, docId, threadId, userId, callback) {
     const UpdateManager = require('./UpdateManager')
     UpdateManager.lockUpdatesAndDo(
       DocumentManager.deleteComment,
       projectId,
       docId,
       threadId,
+      userId,
       callback
     )
   },
@@ -692,6 +744,7 @@ module.exports.promises = promisifyAll(DocumentManager, {
       'projectHistoryId',
       'unflushedTime',
       'alreadyLoaded',
+      'historyRangesSupport',
     ],
     getDocWithLock: [
       'lines',
@@ -701,6 +754,7 @@ module.exports.promises = promisifyAll(DocumentManager, {
       'projectHistoryId',
       'unflushedTime',
       'alreadyLoaded',
+      'historyRangesSupport',
     ],
     getDocAndFlushIfOld: ['lines', 'version'],
     getDocAndFlushIfOldWithLock: ['lines', 'version'],

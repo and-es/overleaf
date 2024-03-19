@@ -2,7 +2,7 @@ const { merge } = require('@overleaf/settings/merge')
 
 let features
 
-const httpAuthUser = 'sharelatex'
+const httpAuthUser = 'overleaf'
 const httpAuthPass = 'password'
 const httpAuthUsers = {}
 httpAuthUsers[httpAuthUser] = httpAuthPass
@@ -95,12 +95,6 @@ module.exports = {
       url: 'http://localhost:28000',
     },
   },
-
-  // for registration via SL, set enableLegacyRegistration to true
-  // for registration via Overleaf v1, set enableLegacyLogin to true
-
-  // Currently, acceptance tests require enableLegacyRegistration.
-  enableLegacyRegistration: true,
 
   features: (features = {
     v1_free: {
@@ -245,10 +239,6 @@ module.exports = {
   },
 
   reconfirmNotificationDays: 14,
-
-  unsupportedBrowsers: {
-    ie: '<=11',
-  },
 
   recaptcha: {
     siteKey: 'siteKey',

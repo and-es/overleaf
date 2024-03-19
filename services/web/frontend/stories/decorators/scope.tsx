@@ -23,6 +23,7 @@ import { ProjectSettingsProvider } from '@/features/editor-left-menu/context/pro
 import { FileTreePathProvider } from '@/features/file-tree/contexts/file-tree-path'
 import { UserSettingsProvider } from '@/shared/context/user-settings-context'
 import { OutlineProvider } from '@/features/ide-react/context/outline-context'
+import { ChatProvider } from '@/features/chat/context/chat-context'
 
 const scopeWatchers: [string, (value: any) => void][] = []
 
@@ -135,7 +136,7 @@ const initialize = () => {
     emailConfirmationDisabled: false,
     enableSubscriptions: true,
     hasAffiliationsFeature: false,
-    hasLinkUrlFeature: false,
+    hasLinkUrlFeature: true,
     hasLinkedProjectFileFeature: true,
     hasLinkedProjectOutputFileFeature: true,
     hasSamlFeature: true,
@@ -193,6 +194,8 @@ const initialize = () => {
     ],
     editableFilenames: ['latexmkrc', '.latexmkrc', 'makefile', 'gnumakefile'],
     validRootDocExtensions: ['tex', 'Rtex', 'ltx', 'Rnw'],
+    fileIgnorePattern:
+      '**/{{__MACOSX,.git,.texpadtmp,.R}{,/**},.!(latexmkrc),*.{dvi,aux,log,toc,out,pdfsync,synctex,synctex(busy),fdb_latexmk,fls,nlo,ind,glo,gls,glg,bbl,blg,doc,docx,gz,swp}}',
     projectUploadTimeout: 12000,
   }
 
@@ -242,6 +245,7 @@ export const ScopeDecorator = (
   useMeta(meta)
 
   const Providers = {
+    ChatProvider,
     DetachCompileProvider,
     DetachProvider,
     EditorProvider,
@@ -273,9 +277,11 @@ export const ScopeDecorator = (
                         <Providers.LayoutProvider>
                           <Providers.LocalCompileProvider>
                             <Providers.DetachCompileProvider>
-                              <Providers.OutlineProvider>
-                                <Story />
-                              </Providers.OutlineProvider>
+                              <Providers.ChatProvider>
+                                <Providers.OutlineProvider>
+                                  <Story />
+                                </Providers.OutlineProvider>
+                              </Providers.ChatProvider>
                             </Providers.DetachCompileProvider>
                           </Providers.LocalCompileProvider>
                         </Providers.LayoutProvider>

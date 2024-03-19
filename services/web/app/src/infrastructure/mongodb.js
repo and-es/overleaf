@@ -1,7 +1,20 @@
-const { ObjectId, ReadPreference } = require('mongodb')
+const mongodb = require('mongodb')
 const OError = require('@overleaf/o-error')
 const Settings = require('@overleaf/settings')
-const { getNativeDb } = require('./Mongoose')
+const Mongoose = require('./Mongoose')
+
+// Ensure Mongoose is using the same mongodb instance as the mongodb module,
+// otherwise we will get multiple versions of the ObjectId class. Mongoose
+// patches ObjectId, so loading multiple versions of the mongodb module can
+// cause problems with ObjectId comparisons.
+if (Mongoose.mongo !== mongodb) {
+  throw new OError(
+    'FATAL ERROR: Mongoose is using a different mongodb instance'
+  )
+}
+
+const { getNativeDb } = Mongoose
+const { ObjectId, ReadPreference } = mongodb
 
 if (
   typeof global.beforeEach === 'function' &&
@@ -38,7 +51,6 @@ async function setupDb() {
   db.dropboxProjects = internalDb.collection('dropboxProjects')
   db.docHistory = internalDb.collection('docHistory')
   db.docHistoryIndex = internalDb.collection('docHistoryIndex')
-  db.docOps = internalDb.collection('docOps')
   db.docSnapshots = internalDb.collection('docSnapshots')
   db.docs = internalDb.collection('docs')
   db.feedbacks = internalDb.collection('feedbacks')
@@ -98,7 +110,7 @@ async function dropTestDatabase() {
   const dbName = internalDb.databaseName
   const env = process.env.NODE_ENV
 
-  if (dbName !== 'test-sharelatex' || env !== 'test') {
+  if (dbName !== 'test-overleaf' || env !== 'test') {
     throw new OError(
       `Refusing to clear database '${dbName}' in environment '${env}'`
     )

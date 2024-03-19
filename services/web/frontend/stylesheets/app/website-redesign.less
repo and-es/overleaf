@@ -210,6 +210,127 @@
     }
   }
 
+  .customer-story-card-title {
+    margin-top: 25px;
+    margin-bottom: 12.5px;
+    font-size: 1.5rem;
+    font-weight: 600;
+
+    a {
+      display: flex;
+      justify-content: space-between;
+      color: var(--neutral-90);
+      i {
+        font-size: 1.5rem;
+      }
+    }
+  }
+
+  .customer-story-content {
+    h1 {
+      @media (max-width: @screen-sm-max) {
+        font-size: 2.25rem;
+        line-height: 1.333;
+      }
+    }
+
+    .table-of-contents-section {
+      padding-right: 64px;
+      @media (max-width: @screen-sm-max) {
+        display: none;
+      }
+
+      .table-of-contents {
+        border-top: 1px solid var(--neutral-30);
+        border-bottom: 1px solid var(--neutral-30);
+        padding: 32px 0;
+
+        .heading {
+          font-size: 1.125rem;
+          font-weight: 600;
+          line-height: 1.333;
+          color: var(--green-60);
+        }
+        li {
+          list-style: none;
+          padding-top: 16px;
+          font-weight: 500;
+          a {
+            text-decoration: none;
+            color: var(--neutral-70);
+          }
+        }
+      }
+    }
+
+    .story-details-section {
+      h3 {
+        font-size: 1.875rem;
+        line-height: 1.333;
+        margin-top: 0;
+      }
+
+      .at-glance-section {
+        padding-top: 24px;
+        p {
+          margin-top: 16px;
+        }
+      }
+
+      p {
+        font-size: 1.125rem;
+      }
+
+      .border-r-16 {
+        border-radius: 16px;
+      }
+
+      .introduction-image-caption {
+        padding-top: 16px;
+      }
+
+      .stats-card {
+        display: flex;
+        flex-direction: row;
+        padding: 32px;
+        border-radius: 16px;
+        background: var(--dark-jungle-green);
+        color: var(--white);
+        @media (max-width: @screen-sm-max) {
+          flex-direction: column;
+        }
+
+        .stats {
+          h3 {
+            font-size: 2rem;
+            font-weight: 600;
+          }
+
+          p {
+            font-weight: 600;
+            height: 50px;
+          }
+        }
+      }
+    }
+
+    .customer-quote {
+      border-left: 2px solid var(--green-60);
+      padding-left: 16px;
+
+      blockquote {
+        color: var(--neutral-90);
+        font-size: 1.6rem;
+        line-height: 1.333;
+      }
+
+      p {
+        margin-top: 1rem;
+        font-size: 1.125rem;
+      }
+    }
+  }
+
   .features-card {
     display: flex; /* equal heights */
     flex-wrap: wrap;
@@ -265,41 +386,6 @@
         margin-top: 4px;
         display: block;
       }
-
-      ul {
-        list-style-type: none;
-        padding: 0;
-        margin: 0;
-
-        li {
-          margin-bottom: 12px;
-          font-size: 1.125rem;
-          line-height: 1.333;
-          // flex is needed in the case of "premium" label being on the same line
-          display: flex;
-
-          @media (max-width: @screen-sm-max) {
-            font-size: 1rem;
-            line-height: 1.375;
-
-            // only for label-premium that appears directly as a child of li
-            > .label-premium {
-              align-self: center;
-            }
-          }
-
-          h4 {
-            margin-top: 0;
-            margin-bottom: 8px;
-            font-size: 20px;
-            font-weight: 600;
-          }
-
-          p {
-            margin-bottom: 0;
-          }
-        }
-      }
     }
 
     .features-card-description {
@@ -315,6 +401,40 @@
         font-size: 1.875rem;
         line-height: 1.5;
       }
+
+      ul.list-simple-text,
+      ul.list-heading-text {
+        list-style-type: none;
+        padding: 0;
+        margin: 0;
+
+        li {
+          margin-bottom: 12px;
+          font-size: 1.125rem;
+          line-height: 1.333;
+          display: flex;
+
+          .label-premium {
+            margin-left: 0;
+          }
+
+          @media (max-width: @screen-sm-max) {
+            font-size: 1rem;
+            line-height: 1.375;
+          }
+        }
+      }
+
+      ul.list-heading-text {
+        li {
+          h4 {
+            margin-top: 0;
+            margin-bottom: 8px;
+            font-size: 20px;
+            font-weight: 600;
+          }
+        }
+      }
     }
   }
 
@@ -322,7 +442,6 @@
     display: flex; /* equal heights */
     flex-wrap: wrap;
     align-items: center;
-
     position: relative;
     height: 655px;
     padding-top: @line-height-computed * 2;
@@ -500,7 +619,7 @@
           }
         }
 
-        i.material-symbols-rounded {
+        i.material-symbols {
           vertical-align: middle;
           text-decoration: none;
         }
@@ -518,6 +637,42 @@
     }
   }
 
+  .lime-color-text {
+    color: var(--malachite);
+  }
+
+  .cta-card-individual-customer {
+    display: flex;
+    justify-content: space-between;
+    padding: 64px;
+    background: var(--dark-jungle-green);
+    color: var(--white);
+    border-radius: 8px;
+
+    @media (max-width: @screen-sm-max) {
+      padding: 48px 24px;
+    }
+
+    h2 {
+      font-size: 1.875rem;
+      color: var(--white);
+    }
+    p {
+      font-size: 1.125rem;
+    }
+
+    .btn-container {
+      padding-top: 10px;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+    }
+  }
+
+  .paragraph-line-height {
+    line-height: 1.333; // 24px
+  }
+
   .cta-card {
     display: flex;
     flex-direction: column;
@@ -528,7 +683,7 @@
     border-radius: 8px;
 
     @media (max-width: @screen-sm-max) {
-      padding: 48px 24px 48px 24px;
+      padding: 48px 24px;
     }
 
     .cta-card-title {
@@ -539,7 +694,7 @@
       &.title-mono {
         > span {
           // override Noto Sans
-          font-family: 'DM Mono', monospace;
+          .dm-mono;
         }
       }
 
@@ -600,6 +755,10 @@
       margin-bottom: 16px;
     }
 
+    .quote-card-link {
+      color: var(--mint-green);
+    }
+
     @media (max-width: @screen-sm-max) {
       padding: 56px 24px 56px 24px;
     }
@@ -633,10 +792,8 @@
   }
 
   .text-with-bg {
-    font-family: 'DM Mono', monospace;
-    font-feature-settings: 'ss05';
+    .dm-mono;
     padding: 0 @padding-sm;
-    margin: 0 6px;
     border-radius: 10px;
     margin-top: 5px;
 
@@ -728,24 +885,42 @@
     }
   }
 
-  .mono-text {
+  .dm-mono {
     font-family: 'DM Mono', monospace;
-    color: var(--green-60);
     font-feature-settings: 'ss05';
+  }
+
+  .mono-text {
+    .dm-mono;
+    color: var(--green-60);
     font-size: 1.125rem;
     font-weight: 500;
     line-height: 1.5rem;
     margin: 0;
   }
 
+  .customer-stories-hero-heading {
+    @media (max-width: @screen-sm-max) {
+      font-size: 2.25rem;
+      line-height: 1.333;
+    }
+  }
+
+  .customer-stories-hero-text {
+    font-size: 1.25rem;
+  }
+
+  .customer-stories-logos-text {
+    font-size: 1.125rem;
+  }
+
   .link-with-arrow {
+    .dm-mono;
     font-size: 1.125rem;
     line-height: 1.333;
-    font-family: 'DM Mono', monospace;
-    font-feature-settings: 'ss05';
     font-weight: 500;
 
-    i.material-symbols-rounded {
+    i.material-symbols {
       vertical-align: middle;
       padding-bottom: 3px;
       font-size: 24px;
@@ -809,7 +984,6 @@
   .green-round-background {
     .round-background;
     background: var(--mint-green);
-    color: var(--dark-jungle-green);
   }
 
   .blue-round-background {
@@ -865,20 +1039,6 @@
     max-width: 64px;
   }
 
-  .premium-badge {
-    .premium-badge-img {
-      margin-left: 10px;
-    }
-
-    @media (max-width: @screen-xs-max) {
-      display: flex;
-      .premium-badge-img {
-        width: 87px;
-        margin-left: auto;
-      }
-    }
-  }
-
   .responsive-button-container {
     display: flex;
     margin-top: 24px;
@@ -892,6 +1052,15 @@
       @media (max-width: @screen-sm-max) {
         justify-content: start;
       }
+    }
+
+    @media (max-width: @screen-xs-max) {
+      width: 100%;
+      // this is currently useful for responsive-button-container that has two buttons
+      // in our current implementation, all two-buttons container will have the same value (explore plan + sign up)
+      // we want to sign up to be on the right side on big screen, and on the top on small screen
+      // if we want to apply this style for different buttons scenario, we should change this
+      flex-direction: column-reverse;
     }
   }
 

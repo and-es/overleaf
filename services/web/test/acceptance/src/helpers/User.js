@@ -5,7 +5,7 @@ const { db, ObjectId } = require('../../../../app/src/infrastructure/mongodb')
 const UserModel = require('../../../../app/src/models/User').User
 const UserUpdater = require('../../../../app/src/Features/User/UserUpdater')
 const AuthenticationManager = require('../../../../app/src/Features/Authentication/AuthenticationManager')
-const { promisify } = require('util')
+const { promisifyClass } = require('@overleaf/promise-utils')
 const fs = require('fs')
 const Path = require('path')
 
@@ -26,6 +26,13 @@ class User {
     this.email = this.emails[0].email
     this.password = `a-terrible-secret-${count}`
     count++
+    this.jar = request.jar()
+    this.request = request.defaults({
+      jar: this.jar,
+    })
+  }
+
+  resetCookies() {
     this.jar = request.jar()
     this.request = request.defaults({
       jar: this.jar,
@@ -156,10 +163,11 @@ class User {
           }
           if (response.statusCode !== 200) {
             return callback(
-              new Error(
+              new OError(
                 `login failed: status=${
                   response.statusCode
-                } body=${JSON.stringify(body)}`
+                } body=${JSON.stringify(body)}`,
+                { response, body }
               )
             )
           }
@@ -227,14 +235,6 @@ class User {
 
   setEmails(emails, callback) {
     UserModel.updateOne({ _id: this.id }, { emails }, callback)
-  }
-
-  setEnrollment(enrollment, callback) {
-    UserModel.updateOne({ _id: this.id }, { enrollment }, callback)
-  }
-
-  setSamlIdentifiers(samlIdentifiers, callback) {
-    UserModel.updateOne({ _id: this.id }, { samlIdentifiers }, callback)
   }
 
   logout(callback) {
@@ -557,7 +557,7 @@ class User {
   }
 
   uploadFileInProject(projectId, folderId, file, name, contentType, callback) {
-    const imageFile = fs.createReadStream(
+    const fileStream = fs.createReadStream(
       Path.resolve(Path.join(__dirname, '..', '..', 'files', file))
     )
 
@@ -570,7 +570,7 @@ class User {
         formData: {
           name,
           qqfile: {
-            value: imageFile,
+            value: fileStream,
             options: {
               filename: name,
               contentType,
@@ -687,13 +687,12 @@ class User {
     this.request.post(
       {
         url: `/project/${projectId}/join`,
-        qs: { user_id: this._id },
         auth: {
           user: settings.apis.web.user,
           pass: settings.apis.web.pass,
           sendImmediately: true,
         },
-        json: true,
+        json: { userId: this._id },
         jar: false,
       },
       (error, response, body) => {
@@ -1027,28 +1026,20 @@ class User {
   }
 }
 
-User.promises = class extends User {
-  doRequest(method, params) {
-    return new Promise((resolve, reject) => {
-      this.request[method.toLowerCase()](params, (err, response, body) => {
-        if (err) {
-          reject(err)
-        } else {
-          resolve({ response, body })
-        }
-      })
-    })
-  }
-}
-
-// promisify User class methods - works for methods with 0-1 output parameters,
-// otherwise we will need to implement the method manually instead
-const nonPromiseMethods = ['constructor', 'setExtraAttributes']
-Object.getOwnPropertyNames(User.prototype).forEach(methodName => {
-  const method = User.prototype[methodName]
-  if (typeof method === 'function' && !nonPromiseMethods.includes(methodName)) {
-    User.promises.prototype[methodName] = promisify(method)
-  }
+User.promises = promisifyClass(User, {
+  without: ['setExtraAttributes'],
 })
+
+User.promises.prototype.doRequest = async function (method, params) {
+  return new Promise((resolve, reject) => {
+    this.request[method.toLowerCase()](params, (err, response, body) => {
+      if (err) {
+        reject(err)
+      } else {
+        resolve({ response, body })
+      }
+    })
+  })
+}
 
 module.exports = User

@@ -11,6 +11,7 @@ const _ = require('lodash')
 const { expressify } = require('@overleaf/promise-utils')
 const Features = require('../../infrastructure/Features')
 const SplitTestHandler = require('../SplitTests/SplitTestHandler')
+const Modules = require('../../infrastructure/Modules')
 
 async function settingsPage(req, res) {
   const userId = SessionManager.getLoggedInUserId(req.session)
@@ -86,7 +87,7 @@ async function settingsPage(req, res) {
   await SplitTestHandler.promises.getAssignment(
     req,
     res,
-    'writefull-integration'
+    'writefull-oauth-promotion'
   )
 
   let personalAccessTokens
@@ -108,6 +109,33 @@ async function settingsPage(req, res) {
       await SubscriptionLocator.promises.getAdminEmail(req.managedBy)
   } catch (err) {
     logger.error({ err }, 'error getting subscription admin email')
+  }
+
+  const memberOfSSOEnabledGroups = []
+  try {
+    const memberOfGroups =
+      await SubscriptionLocator.promises.getMemberSubscriptions(user._id)
+    for (const group of memberOfGroups) {
+      const hasSSOEnabled = (
+        await Modules.promises.hooks.fire('hasGroupSSOEnabled', group)
+      )?.[0]
+      if (hasSSOEnabled) {
+        const groupId = group._id.toString()
+        memberOfSSOEnabledGroups.push({
+          groupId,
+          linked: user.enrollment?.sso?.some(
+            sso => sso.groupId.toString() === groupId
+          ),
+          groupName: group.teamName,
+          adminEmail: group.admin_id?.email,
+        })
+      }
+    }
+  } catch (error) {
+    logger.error(
+      { err: error },
+      'error fetching groups with Group SSO enabled the user may be member of'
+    )
   }
 
   res.render('user/settings', {
@@ -162,6 +190,9 @@ async function settingsPage(req, res) {
     isManagedAccount: !!req.managedBy,
     userRestrictions: Array.from(req.userRestrictions || []),
     currentManagedUserAdminEmail,
+    gitBridgeEnabled: Settings.enableGitBridge,
+    isSaas: Features.hasFeature('saas'),
+    memberOfSSOEnabledGroups,
   })
 }
 

@@ -82,7 +82,7 @@ describe('UserController', function () {
       },
     }
 
-    this.settings = { siteUrl: 'sharelatex.example.com' }
+    this.settings = { siteUrl: 'overleaf.example.com' }
 
     this.UserHandler = {
       promises: { populateTeamInvites: sinon.stub().resolves() },
@@ -554,7 +554,7 @@ describe('UserController', function () {
     })
 
     it('should redirect after logout', function (done) {
-      this.req.body.redirect = '/institutional-login'
+      this.req.body.redirect = '/sso-login'
       this.req.session.destroy = sinon.stub().callsArgWith(0)
       this.res.redirect = url => {
         url.should.equal(this.req.body.redirect)

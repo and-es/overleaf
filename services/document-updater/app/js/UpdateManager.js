@@ -3,6 +3,7 @@
 const { callbackifyAll } = require('@overleaf/promise-utils')
 const LockManager = require('./LockManager')
 const RedisManager = require('./RedisManager')
+const ProjectHistoryRedisManager = require('./ProjectHistoryRedisManager')
 const RealTimeRedisManager = require('./RealTimeRedisManager')
 const ShareJsUpdateManager = require('./ShareJsUpdateManager')
 const HistoryManager = require('./HistoryManager')
@@ -14,6 +15,16 @@ const DocumentManager = require('./DocumentManager')
 const RangesManager = require('./RangesManager')
 const SnapshotManager = require('./SnapshotManager')
 const Profiler = require('./Profiler')
+const { isInsert, isDelete } = require('./Utils')
+
+/**
+ * @typedef {import("./types").DeleteOp} DeleteOp
+ * @typedef {import("./types").HistoryUpdate } HistoryUpdate
+ * @typedef {import("./types").InsertOp} InsertOp
+ * @typedef {import("./types").Op} Op
+ * @typedef {import("./types").Ranges} Ranges
+ * @typedef {import("./types").Update} Update
+ */
 
 const UpdateManager = {
   async processOutstandingUpdates(projectId, docId) {
@@ -82,6 +93,13 @@ const UpdateManager = {
     profile.log('async done').end()
   },
 
+  /**
+   * Apply an update to the given document
+   *
+   * @param {string} projectId
+   * @param {string} docId
+   * @param {Update} update
+   */
   async applyUpdate(projectId, docId, update) {
     const profile = new Profiler('applyUpdate', {
       project_id: projectId,
@@ -92,8 +110,14 @@ const UpdateManager = {
     // profile.log('sanitizeUpdate', { sync: true })
 
     try {
-      let { lines, version, ranges, pathname, projectHistoryId } =
-        await DocumentManager.promises.getDoc(projectId, docId)
+      let {
+        lines,
+        version,
+        ranges,
+        pathname,
+        projectHistoryId,
+        historyRangesSupport,
+      } = await DocumentManager.promises.getDoc(projectId, docId)
       profile.log('getDoc')
 
       if (lines == null || version == null) {
@@ -117,24 +141,18 @@ const UpdateManager = {
         sync: incomingUpdateVersion === previousVersion,
       })
 
-      const { newRanges, rangesWereCollapsed } =
-        await RangesManager.promises.applyUpdate(
+      const { newRanges, rangesWereCollapsed, historyUpdates } =
+        RangesManager.applyUpdate(
           projectId,
           docId,
           ranges,
           appliedOps,
-          updatedDocLines
+          updatedDocLines,
+          { historyRangesSupport }
         )
       profile.log('RangesManager.applyUpdate', { sync: true })
 
-      UpdateManager._addProjectHistoryMetadataToOps(
-        appliedOps,
-        pathname,
-        projectHistoryId,
-        lines
-      )
-
-      const projectOpsLength = await RedisManager.promises.updateDocument(
+      await RedisManager.promises.updateDocument(
         projectId,
         docId,
         updatedDocLines,
@@ -145,12 +163,36 @@ const UpdateManager = {
       )
       profile.log('RedisManager.updateDocument')
 
-      HistoryManager.recordAndFlushHistoryOps(
-        projectId,
-        appliedOps,
-        projectOpsLength
+      UpdateManager._addMetadataToHistoryUpdates(
+        historyUpdates,
+        pathname,
+        projectHistoryId,
+        lines,
+        ranges,
+        historyRangesSupport
       )
-      profile.log('recordAndFlushHistoryOps')
+
+      if (historyUpdates.length > 0) {
+        Metrics.inc('history-queue', 1, { status: 'project-history' })
+        try {
+          const projectOpsLength =
+            await ProjectHistoryRedisManager.promises.queueOps(
+              projectId,
+              ...historyUpdates.map(op => JSON.stringify(op))
+            )
+          HistoryManager.recordAndFlushHistoryOps(
+            projectId,
+            historyUpdates,
+            projectOpsLength
+          )
+          profile.log('recordAndFlushHistoryOps')
+        } catch (err) {
+          // The full project history can re-sync a project in case
+          //  updates went missing.
+          // Just record the error here and acknowledge the write-op.
+          Metrics.inc('history-queue-error')
+        }
+      }
 
       if (rangesWereCollapsed) {
         Metrics.inc('doc-snapshot')
@@ -260,16 +302,44 @@ const UpdateManager = {
     return update
   },
 
-  _addProjectHistoryMetadataToOps(updates, pathname, projectHistoryId, lines) {
+  /**
+   * Add metadata that will be useful to project history
+   *
+   * @param {HistoryUpdate[]} updates
+   * @param {string} pathname
+   * @param {string} projectHistoryId
+   * @param {string[]} lines
+   * @param {Ranges} ranges
+   * @param {boolean} historyRangesSupport
+   */
+  _addMetadataToHistoryUpdates(
+    updates,
+    pathname,
+    projectHistoryId,
+    lines,
+    ranges,
+    historyRangesSupport
+  ) {
     let docLength = _.reduce(lines, (chars, line) => chars + line.length, 0)
     docLength += lines.length - 1 // count newline characters
-    updates.forEach(function (update) {
+    let historyDocLength = docLength
+    for (const change of ranges.changes ?? []) {
+      if ('d' in change.op) {
+        historyDocLength += change.op.d.length
+      }
+    }
+
+    for (const update of updates) {
       update.projectHistoryId = projectHistoryId
       if (!update.meta) {
         update.meta = {}
       }
       update.meta.pathname = pathname
       update.meta.doc_length = docLength
+      if (historyRangesSupport && historyDocLength !== docLength) {
+        update.meta.history_doc_length = historyDocLength
+      }
+
       // Each update may contain multiple ops, i.e.
       // [{
       // 	ops: [{i: "foo", p: 4}, {d: "bar", p:8}]
@@ -280,14 +350,26 @@ const UpdateManager = {
       // before it's ops are applied. However, we need to track any
       // changes to it for the next update.
       for (const op of update.op) {
-        if (op.i != null) {
+        if (isInsert(op)) {
           docLength += op.i.length
+          if (!op.trackedDeleteRejection) {
+            // Tracked delete rejections end up retaining characters rather
+            // than inserting
+            historyDocLength += op.i.length
+          }
         }
-        if (op.d != null) {
+        if (isDelete(op)) {
           docLength -= op.d.length
+          if (!update.meta.tc || op.u) {
+            // This is either a regular delete or a tracked insert rejection.
+            // It will be translated to a delete in history.  Tracked deletes
+            // are translated into retains and don't change the history doc
+            // length.
+            historyDocLength -= op.d.length
+          }
         }
       }
-    })
+    }
   },
 }
 

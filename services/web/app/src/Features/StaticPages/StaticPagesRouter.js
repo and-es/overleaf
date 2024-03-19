@@ -15,7 +15,6 @@ module.exports = {
   apply(webRouter) {
     webRouter.get('/', HomeController.index)
     webRouter.get('/home', HomeController.home)
-    webRouter.get('/home-2', HomeController.homeNew)
 
     webRouter.get(
       '/planned_maintenance',
@@ -25,11 +24,6 @@ module.exports = {
     webRouter.get(
       '/track-changes-and-comments-in-latex',
       HomeController.externalPage('review-features-page', 'Review features')
-    )
-
-    webRouter.get(
-      '/dropbox',
-      HomeController.externalPage('dropbox', 'Dropbox and ShareLaTeX')
     )
 
     webRouter.get('/university', UniversityController.getIndexPage)

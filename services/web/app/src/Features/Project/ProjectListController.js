@@ -327,13 +327,6 @@ async function projectListPage(req, res, next) {
     }
   }
 
-  // The assignment will be picked up via 'ol-splitTestVariants' in react.
-  await SplitTestHandler.promises.getAssignment(
-    req,
-    res,
-    'download-pdf-dashboard'
-  )
-
   const hasPaidAffiliation = userAffiliations.some(
     affiliation => affiliation.licence && affiliation.licence !== 'free'
   )
@@ -364,49 +357,17 @@ async function projectListPage(req, res, next) {
     }
   }
 
-  await SplitTestHandler.promises.getAssignment(
-    req,
-    res,
-    'writefull-integration'
-  )
-
-  let showInrGeoBanner, inrGeoBannerSplitTestName
-  let inrGeoBannerVariant = 'default'
-  let showLATAMBanner = false
+  let showInrGeoBanner = false
+  let showBrlGeoBanner = false
   let recommendedCurrency
+
   if (usersBestSubscription?.type === 'free') {
-    const { currencyCode, countryCode } =
-      await GeoIpLookup.promises.getCurrencyCode(req.ip)
-    // Split test is kept active, but all users geolocated in India can
-    // now use the INR currency (See #13507)
-    const { variant: inrGeoPricingVariant } =
-      await SplitTestHandler.promises.getAssignment(req, res, 'geo-pricing-inr')
-    const latamGeoPricingAssignment =
-      await SplitTestHandler.promises.getAssignment(
-        req,
-        res,
-        'geo-pricing-latam'
-      )
-    showLATAMBanner =
-      latamGeoPricingAssignment.variant === 'latam' &&
-      ['BR', 'MX', 'CO', 'CL', 'PE'].includes(countryCode)
-    // LATAM Banner needs to know which currency to display
-    if (showLATAMBanner) {
-      recommendedCurrency = currencyCode
-    }
+    const { countryCode } = await GeoIpLookup.promises.getCurrencyCode(req.ip)
+
     if (countryCode === 'IN') {
-      inrGeoBannerSplitTestName =
-        inrGeoPricingVariant === 'inr'
-          ? 'geo-banners-inr-2'
-          : 'geo-banners-inr-1'
-      const geoBannerAssignment = await SplitTestHandler.promises.getAssignment(
-        req,
-        res,
-        inrGeoBannerSplitTestName
-      )
       showInrGeoBanner = true
-      inrGeoBannerVariant = geoBannerAssignment.variant
     }
+    showBrlGeoBanner = countryCode === 'BR'
   }
 
   let hasIndividualRecurlySubscription = false
@@ -456,11 +417,9 @@ async function projectListPage(req, res, next) {
     showGroupsAndEnterpriseBanner,
     groupsAndEnterpriseBannerVariant,
     showWritefullPromoBanner,
-    showLATAMBanner,
     recommendedCurrency,
     showInrGeoBanner,
-    inrGeoBannerVariant,
-    inrGeoBannerSplitTestName,
+    showBrlGeoBanner,
     projectDashboardReact: true, // used in navbar
     groupSsoSetupSuccess,
     groupSubscriptionsPendingEnrollment:

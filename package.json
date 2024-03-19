@@ -2,7 +2,7 @@
   "name": "overleaf",
   "private": true,
   "dependencies": {
-    "patch-package": "^6.4.7"
+    "patch-package": "^8.0.0"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.6",
@@ -11,12 +11,16 @@
     "eslint-config-standard": "^17.0.0",
     "eslint-plugin-chai-expect": "^3.0.0",
     "eslint-plugin-chai-friendly": "^0.7.2",
+    "eslint-plugin-cypress": "^2.15.1",
     "eslint-plugin-import": "^2.26.0",
     "eslint-plugin-mocha": "^10.1.0",
     "eslint-plugin-node": "^11.1.0",
     "eslint-plugin-prettier": "^4.0.0",
     "eslint-plugin-promise": "^6.0.0",
     "prettier": "2.5.1",
+    "resolve-url-loader": "^5.0.0",
+    "sass": "^1.69.5",
+    "sass-loader": "^13.3.2",
     "typescript": "^5.0.4"
   },
   "scripts": {

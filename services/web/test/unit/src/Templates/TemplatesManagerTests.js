@@ -83,7 +83,7 @@ describe('TemplatesManager', function () {
           apis: {
             v1: {
               url: (this.v1Url = 'http://overleaf.com'),
-              user: 'sharelatex',
+              user: 'overleaf',
               pass: 'password',
             },
           },
@@ -121,7 +121,7 @@ describe('TemplatesManager', function () {
 
       it('should fetch zip from v1 based on template id', function () {
         return this.request.should.have.been.calledWith(
-          `${this.v1Url}/api/v1/sharelatex/templates/${this.templateVersionId}`
+          `${this.v1Url}/api/v1/overleaf/templates/${this.templateVersionId}`
         )
       })
 

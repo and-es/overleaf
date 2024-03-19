@@ -1,7 +1,6 @@
 const logger = require('@overleaf/logger')
 const Metrics = require('@overleaf/metrics')
 const Settings = require('@overleaf/settings')
-const querystring = require('querystring')
 const _ = require('lodash')
 const { URL } = require('url')
 const Path = require('path')
@@ -10,7 +9,6 @@ const request = require('request')
 const contentDisposition = require('content-disposition')
 const Features = require('./Features')
 const SessionManager = require('../Features/Authentication/SessionManager')
-const SplitTestMiddleware = require('../Features/SplitTests/SplitTestMiddleware')
 const PackageVersions = require('./PackageVersions')
 const Modules = require('./Modules')
 const {
@@ -20,7 +18,6 @@ const {
 const {
   addOptionalCleanupHandlerAfterDrainingConnections,
 } = require('./GracefulShutdown')
-const { expressify } = require('@overleaf/promise-utils')
 
 const IEEE_BRAND_ID = Settings.ieeeBrandId
 
@@ -79,12 +76,6 @@ function getWebpackAssets(entrypoint, section) {
 }
 
 module.exports = function (webRouter, privateApiRouter, publicApiRouter) {
-  webRouter.use(
-    expressify(
-      SplitTestMiddleware.loadAssignmentsInLocals(['website-redesign'])
-    )
-  )
-
   if (process.env.NODE_ENV === 'development') {
     // In the dev-env, delay requests until we fetched the manifest once.
     webRouter.use(function (req, res, next) {
@@ -186,14 +177,7 @@ module.exports = function (webRouter, privateApiRouter, publicApiRouter) {
       return chunks.map(chunk => staticFilesBase + chunk)
     }
 
-    res.locals.mathJaxPath = `/js/libs/mathjax/MathJax.js?${querystring.stringify(
-      {
-        config: 'TeX-AMS_HTML,Safe',
-        v: PackageVersions.version.mathjax,
-      }
-    )}`
-
-    res.locals.mathJax3Path = `/js/libs/mathjax-3-${PackageVersions.version['mathjax-3']}/es5/tex-svg-full.js`
+    res.locals.mathJaxPath = `/js/libs/mathjax-${PackageVersions.version.mathjax}/es5/tex-svg-full.js`
 
     res.locals.lib = PackageVersions.lib
 
@@ -221,7 +205,13 @@ module.exports = function (webRouter, privateApiRouter, publicApiRouter) {
     }
 
     res.locals.buildCssPath = function (themeModifier = '') {
-      return res.locals.buildStylesheetPath(`main-${themeModifier}style.css`)
+      // Pick which main stylesheet to use based on Bootstrap version
+      const bootstrap5Modifier =
+        res.locals.bootstrapVersion === 5 ? '-bootstrap-5' : ''
+
+      return res.locals.buildStylesheetPath(
+        `main-${themeModifier}style${bootstrap5Modifier}.css`
+      )
     }
 
     res.locals.buildImgPath = function (imgFile) {
@@ -371,6 +361,13 @@ module.exports = function (webRouter, privateApiRouter, publicApiRouter) {
   })
 
   webRouter.use(function (req, res, next) {
+    // Set the Bootstrap version to 3 in all cases for now. This will come from
+    // a split test/feature flag in future.
+    res.locals.bootstrapVersion = 3
+    next()
+  })
+
+  webRouter.use(function (req, res, next) {
     res.locals.ExposedSettings = {
       isOverleaf: Settings.overleaf != null,
       appName: Settings.appName,
@@ -398,6 +395,7 @@ module.exports = function (webRouter, privateApiRouter, publicApiRouter) {
       textExtensions: Settings.textExtensions,
       editableFilenames: Settings.editableFilenames,
       validRootDocExtensions: Settings.validRootDocExtensions,
+      fileIgnorePattern: Settings.fileIgnorePattern,
       sentryAllowedOriginRegex: Settings.sentry.allowedOriginRegex,
       sentryDsn: Settings.sentry.publicDSN,
       sentryEnvironment: Settings.sentry.environment,
@@ -414,6 +412,10 @@ module.exports = function (webRouter, privateApiRouter, publicApiRouter) {
       cookieDomain: Settings.cookieDomain,
       templateLinks: Settings.templateLinks,
       labsEnabled: Settings.labs && Settings.labs.enable,
+      groupSSOEnabled: Settings.groupSSO?.enabled,
+      wikiEnabled: Settings.overleaf != null || Settings.proxyLearn,
+      templatesEnabled:
+        Settings.overleaf != null || Settings.templates?.user_id != null,
     }
     next()
   })

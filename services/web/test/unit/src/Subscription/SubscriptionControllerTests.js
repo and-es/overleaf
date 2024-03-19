@@ -106,7 +106,7 @@ describe('SubscriptionController', function () {
           subdomain: 'sl',
         },
       },
-      siteUrl: 'http://de.sharelatex.dev:3000',
+      siteUrl: 'http://de.overleaf.dev:3000',
     }
     this.AuthorizationManager = {
       promises: {
@@ -268,6 +268,20 @@ describe('SubscriptionController', function () {
         this.SubscriptionController.plansPage(this.req, this.res)
       })
     })
+
+    describe('showInrGeoBanner data', function () {
+      it('should return true for Indian Users', function (done) {
+        this.res.render = (page, opts) => {
+          page.should.equal('subscriptions/plans')
+          opts.showInrGeoBanner.should.equal(true)
+          done()
+        }
+        this.GeoIpLookup.promises.getCurrencyCode.resolves({
+          countryCode: 'IN',
+        })
+        this.SubscriptionController.plansPage(this.req, this.res)
+      })
+    })
   })
 
   describe('interstitialPaymentPage', function () {
@@ -298,6 +312,20 @@ describe('SubscriptionController', function () {
           url.should.equal('/user/subscription?hasSubscription=true')
           done()
         }
+        this.SubscriptionController.interstitialPaymentPage(this.req, this.res)
+      })
+    })
+
+    describe('showInrGeoBanner data', function () {
+      it('should return true for Indian users', function (done) {
+        this.res.render = (page, opts) => {
+          page.should.equal('subscriptions/interstitial-payment')
+          opts.showInrGeoBanner.should.equal(true)
+          done()
+        }
+        this.GeoIpLookup.promises.getCurrencyCode.resolves({
+          countryCode: 'IN',
+        })
         this.SubscriptionController.interstitialPaymentPage(this.req, this.res)
       })
     })

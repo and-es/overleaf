@@ -8,7 +8,6 @@ const CollaboratorsGetter = require('../Collaborators/CollaboratorsGetter')
 const CollaboratorsInviteHandler = require('../Collaborators/CollaboratorsInviteHandler')
 const CollaboratorsHandler = require('../Collaborators/CollaboratorsHandler')
 const PrivilegeLevels = require('../Authorization/PrivilegeLevels')
-const TokenAccessHandler = require('../TokenAccess/TokenAccessHandler')
 const SessionManager = require('../Authentication/SessionManager')
 const Errors = require('../Errors/Errors')
 const DocstoreManager = require('../Docstore/DocstoreManager')
@@ -58,7 +57,7 @@ const unsupportedSpellcheckLanguages = [
 
 async function joinProject(req, res, next) {
   const projectId = req.params.Project_id
-  let userId = req.query.user_id // keep schema in sync with router
+  let userId = req.body.userId // keep schema in sync with router
   if (userId === 'anonymous-user') {
     userId = null
   }
@@ -178,7 +177,7 @@ async function _buildJoinProjectView(req, projectId, userId) {
     await CollaboratorsGetter.promises.getInvitedMembersWithPrivilegeLevels(
       projectId
     )
-  const token = TokenAccessHandler.getRequestToken(req, projectId)
+  const token = req.body.anonymousAccessToken
   const privilegeLevel =
     await AuthorizationManager.promises.getPrivilegeLevelForProject(
       userId,

@@ -172,13 +172,14 @@ const tryContentAccess = (user, projcetId, test, callback) => {
   request.post(
     {
       url: `/project/${projcetId}/join`,
-      qs: { user_id: userId },
       auth: {
         user: settings.apis.web.user,
         pass: settings.apis.web.pass,
         sendImmediately: true,
       },
-      json: true,
+      json: {
+        userId,
+      },
       jar: false,
     },
     (error, response, body) => {
@@ -203,16 +204,15 @@ const tryAnonContentAccess = (user, projectId, token, test, callback) => {
   request.post(
     {
       url: `/project/${projectId}/join`,
-      qs: { user_id: userId },
       auth: {
         user: settings.apis.web.user,
         pass: settings.apis.web.pass,
         sendImmediately: true,
       },
-      headers: {
-        'x-sl-anonymous-access-token': token,
+      json: {
+        userId,
+        anonymousAccessToken: token,
       },
-      json: true,
       jar: false,
     },
     (error, response, body) => {

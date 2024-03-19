@@ -1,7 +1,9 @@
-const Comment = require('./comment')
+// @ts-check
+const Comment = require('../comment')
 
 /**
- * @typedef {import("../types").CommentRawData} CommentRawData
+ * @typedef {import("../types").CommentsListRawData} CommentsListRawData
+ * @typedef {import("../range")} Range
  */
 
 class CommentList {
@@ -13,7 +15,7 @@ class CommentList {
   }
 
   /**
-   * @returns {CommentRawData[]}
+   * @returns {CommentsListRawData}
    */
   getComments() {
     return Array.from(this.comments).map(([commentId, comment]) => {
@@ -37,13 +39,7 @@ class CommentList {
    * @param {Comment} newComment
    */
   add(id, newComment) {
-    const existing = this.getComment(id)
-    if (existing) {
-      // todo: merge/split ranges
-      existing.ranges = newComment.ranges
-    } else {
-      this.comments.set(id, newComment)
-    }
+    this.comments.set(id, newComment)
   }
 
   /**
@@ -54,7 +50,7 @@ class CommentList {
   }
 
   /**
-   * @param {CommentRawData[]} rawComments
+   * @param {CommentsListRawData} rawComments
    */
   static fromRaw(rawComments) {
     const comments = new Map()
@@ -62,6 +58,45 @@ class CommentList {
       comments.set(rawComment.id, Comment.fromRaw(rawComment))
     }
     return new CommentList(comments)
+  }
+
+  /**
+   * @param {Range} range
+   * @param {{ commentIds?: string[] }} opts
+   */
+  applyInsert(range, opts = { commentIds: [] }) {
+    if (!opts.commentIds) {
+      opts.commentIds = []
+    }
+    for (const [commentId, comment] of this.comments) {
+      const commentAfterInsert = comment.applyInsert(
+        range.pos,
+        range.length,
+        opts.commentIds.includes(commentId)
+      )
+      this.comments.set(commentId, commentAfterInsert)
+    }
+  }
+
+  /**
+   * @param {Range} range
+   */
+  applyDelete(range) {
+    for (const [commentId, comment] of this.comments) {
+      const commentAfterDelete = comment.applyDelete(range)
+      this.comments.set(commentId, commentAfterDelete)
+    }
+  }
+
+  /**
+   *
+   * @param {Range} range
+   * @returns {string[]}
+   */
+  idsCoveringRange(range) {
+    return Array.from(this.comments.entries())
+      .filter(([, comment]) => comment.ranges.some(r => r.contains(range)))
+      .map(([id]) => id)
   }
 }
 

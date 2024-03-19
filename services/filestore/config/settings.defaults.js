@@ -62,19 +62,16 @@ const settings = {
       signedUrlExpiryInMs: parseInt(process.env.LINK_EXPIRY_TIMEOUT || 60000),
     },
 
-    s3:
-      process.env.AWS_ACCESS_KEY_ID || process.env.S3_BUCKET_CREDENTIALS
-        ? {
-            key: process.env.AWS_ACCESS_KEY_ID,
-            secret: process.env.AWS_SECRET_ACCESS_KEY,
-            endpoint: process.env.AWS_S3_ENDPOINT,
-            pathStyle: process.env.AWS_S3_PATH_STYLE,
-            partSize: process.env.AWS_S3_PARTSIZE || 100 * 1024 * 1024,
-            bucketCreds: process.env.S3_BUCKET_CREDENTIALS
-              ? JSON.parse(process.env.S3_BUCKET_CREDENTIALS)
-              : undefined,
-          }
+    s3: {
+      key: process.env.AWS_ACCESS_KEY_ID,
+      secret: process.env.AWS_SECRET_ACCESS_KEY,
+      endpoint: process.env.AWS_S3_ENDPOINT,
+      pathStyle: process.env.AWS_S3_PATH_STYLE,
+      partSize: process.env.AWS_S3_PARTSIZE || 100 * 1024 * 1024,
+      bucketCreds: process.env.S3_BUCKET_CREDENTIALS
+        ? JSON.parse(process.env.S3_BUCKET_CREDENTIALS)
         : undefined,
+    },
 
     // GCS should be configured by the service account on the kubernetes pod. See GOOGLE_APPLICATION_CREDENTIALS,
     // which will be picked up automatically.
@@ -113,7 +110,8 @@ const settings = {
     dsn: process.env.SENTRY_DSN,
   },
 
-  delayShutdownMs: parseInt(process.env.DELAY_SHUTDOWN_MS || '30000', 10),
+  gracefulShutdownDelayInMs:
+    parseInt(process.env.GRACEFUL_SHUTDOWN_DELAY_SECONDS ?? '30', 10) * 1000,
 }
 
 // Filestore health check

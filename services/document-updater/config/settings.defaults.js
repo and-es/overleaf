@@ -11,7 +11,7 @@ module.exports = {
       url: `http://${
         process.env.WEB_API_HOST || process.env.WEB_HOST || 'localhost'
       }:${process.env.WEB_API_PORT || process.env.WEB_PORT || 3000}`,
-      user: process.env.WEB_API_USER || 'sharelatex',
+      user: process.env.WEB_API_USER || 'overleaf',
       pass: process.env.WEB_API_PASSWORD || 'password',
     },
     project_history: {
@@ -140,6 +140,9 @@ module.exports = {
         flushAndDeleteQueue() {
           return 'DocUpdaterFlushAndDeleteQueue'
         },
+        historyRangesSupport() {
+          return 'HistoryRangesSupport'
+        },
       },
     },
   },
@@ -156,6 +159,9 @@ module.exports = {
     url:
       process.env.MONGO_CONNECTION_STRING ||
       `mongodb://${process.env.MONGO_HOST || '127.0.0.1'}/sharelatex`,
+    options: {
+      monitorCommands: true,
+    },
   },
 
   sentry: {
@@ -168,5 +174,6 @@ module.exports = {
   continuousBackgroundFlush: process.env.CONTINUOUS_BACKGROUND_FLUSH === 'true',
 
   smoothingOffset: process.env.SMOOTHING_OFFSET || 1000, // milliseconds
-  delayShutdownMs: parseInt(process.env.DELAY_SHUTDOWN_MS || '10000', 10),
+  gracefulShutdownDelayInMs:
+    parseInt(process.env.GRACEFUL_SHUTDOWN_DELAY_SECONDS ?? '10', 10) * 1000,
 }

@@ -452,12 +452,12 @@ describe('AuthenticationController', function () {
       it('should not establish the login', function () {
         this.cb.callCount.should.equal(1)
         this.cb.calledWith(null, false)
-        // @res.body.should.exist
-        expect(this.cb.lastCall.args[2]).to.contain.all.keys(['text', 'type'])
+        expect(this.cb.lastCall.args[2]).to.deep.equal({
+          type: 'error',
+          key: 'invalid-password-retry-or-reset',
+          status: 401,
+        })
       })
-      // message:
-      // 	text: 'Your email or password were incorrect. Please try again',
-      // 	type: 'error'
 
       it('should not setup the user data in the background', function () {
         this.UserHandler.setupLoginData.called.should.equal(false)
@@ -481,7 +481,7 @@ describe('AuthenticationController', function () {
     beforeEach(function () {
       this.user = {
         _id: 'user-id-123',
-        email: 'user@sharelatex.com',
+        email: 'user@overleaf.com',
       }
       this.middleware = this.AuthenticationController.requireLogin()
     })
@@ -491,7 +491,7 @@ describe('AuthenticationController', function () {
         this.req.session = {
           user: (this.user = {
             _id: 'user-id-123',
-            email: 'user@sharelatex.com',
+            email: 'user@overleaf.com',
           }),
         }
         this.middleware(this.req, this.res, this.next)
@@ -524,7 +524,7 @@ describe('AuthenticationController', function () {
     beforeEach(function () {
       this.user = {
         _id: 'user-id-123',
-        email: 'user@sharelatex.com',
+        email: 'user@overleaf.com',
       }
       this.middleware = this.AuthenticationController.validateUserSession()
     })
@@ -578,13 +578,15 @@ describe('AuthenticationController', function () {
     })
 
     describe('when Oauth2Server authenticates', function () {
-      beforeEach(function () {
+      beforeEach(function (done) {
         this.token = {
           accessToken: 'token',
           user: 'user',
         }
-        this.Oauth2Server.server.authenticate.yields(null, this.token)
-        this.middleware(this.req, this.res, this.next)
+        this.Oauth2Server.server.authenticate = sinon
+          .stub()
+          .resolves(this.token)
+        this.middleware(this.req, this.res, () => done())
       })
 
       it('should set oauth_token on request', function () {
@@ -598,15 +600,12 @@ describe('AuthenticationController', function () {
       it('should set oauth_user on request', function () {
         this.req.oauth_user.should.equal('user')
       })
-
-      it('should call next', function () {
-        this.next.should.have.been.calledOnce
-      })
     })
 
     describe('when Oauth2Server returns 401 error', function () {
-      beforeEach(function () {
-        this.Oauth2Server.server.authenticate.yields({ code: 401 })
+      beforeEach(function (done) {
+        this.res.json.callsFake(() => done())
+        this.Oauth2Server.server.authenticate.rejects({ code: 401 })
         this.middleware(this.req, this.res, this.next)
       })
 

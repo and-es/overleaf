@@ -516,6 +516,37 @@ templates.groupSSOLinkingInvite = ctaTemplate({
   },
 })
 
+templates.groupSSOReauthenticate = ctaTemplate({
+  subject(opts) {
+    return 'Action required: Reauthenticate your Overleaf account'
+  },
+  title(opts) {
+    return 'Action required: Reauthenticate SSO'
+  },
+  message(opts) {
+    return [
+      `Hi,
+      <div>
+      Single sign-on for your Overleaf group has been updated. 
+      This means you need to reauthenticate your Overleaf account with your group’s SSO provider. 
+      </div>
+      `,
+    ]
+  },
+  secondaryMessage(opts) {
+    return [``]
+  },
+  ctaURL(opts) {
+    return opts.authenticateWithSSO
+  },
+  ctaText(opts) {
+    return 'Reauthenticate now'
+  },
+  greeting() {
+    return ''
+  },
+})
+
 templates.groupSSODisabled = ctaTemplate({
   subject(opts) {
     return `Action required: Set your Overleaf password`
@@ -818,6 +849,87 @@ templates.SAMLDataCleared = ctaTemplate({
   },
   ctaURL(opts) {
     return `${settings.siteUrl}/user/settings`
+  },
+})
+
+templates.welcome = ctaTemplate({
+  subject() {
+    return `Welcome to ${settings.appName}`
+  },
+  title() {
+    return `Welcome to ${settings.appName}`
+  },
+  greeting() {
+    return 'Hi,'
+  },
+  message(opts, isPlainText) {
+    const logInAgainDisplay = EmailMessageHelper.displayLink(
+      'log in again',
+      `${settings.siteUrl}/login`,
+      isPlainText
+    )
+    const helpGuidesDisplay = EmailMessageHelper.displayLink(
+      'Help Guides',
+      `${settings.siteUrl}/learn`,
+      isPlainText
+    )
+    const templatesDisplay = EmailMessageHelper.displayLink(
+      'Templates',
+      `${settings.siteUrl}/templates`,
+      isPlainText
+    )
+
+    return [
+      `Thanks for signing up to ${settings.appName}! If you ever get lost, you can ${logInAgainDisplay} with the email address '${opts.to}'.`,
+      `If you're new to LaTeX, take a look at our ${helpGuidesDisplay} and ${templatesDisplay}.`,
+      `Please also take a moment to confirm your email address for ${settings.appName}:`,
+    ]
+  },
+  secondaryMessage() {
+    return [
+      `PS. We love talking to our users about ${settings.appName}. Reply to this email to get in touch with us directly, whatever the reason. Questions, comments, problems, suggestions, all welcome!`,
+    ]
+  },
+  ctaText() {
+    return 'Confirm Email'
+  },
+  ctaURL(opts) {
+    return opts.confirmEmailUrl
+  },
+})
+
+templates.welcomeWithoutCTA = NoCTAEmailTemplate({
+  subject() {
+    return `Welcome to ${settings.appName}`
+  },
+  title() {
+    return `Welcome to ${settings.appName}`
+  },
+  greeting() {
+    return 'Hi,'
+  },
+  message(opts, isPlainText) {
+    const logInAgainDisplay = EmailMessageHelper.displayLink(
+      'log in again',
+      `${settings.siteUrl}/login`,
+      isPlainText
+    )
+    const helpGuidesDisplay = EmailMessageHelper.displayLink(
+      'Help Guides',
+      `${settings.siteUrl}/learn`,
+      isPlainText
+    )
+    const templatesDisplay = EmailMessageHelper.displayLink(
+      'Templates',
+      `${settings.siteUrl}/templates`,
+      isPlainText
+    )
+
+    return [
+      `Thanks for signing up to ${settings.appName}! If you ever get lost, you can ${logInAgainDisplay} with the email address '${opts.to}'.`,
+      `If you're new to LaTeX, take a look at our ${helpGuidesDisplay} and ${templatesDisplay}.`,
+      `PS. We love talking to our users about ${settings.appName}. Reply to this email to get in touch with us directly, whatever the reason. Questions, comments, problems, suggestions, all welcome!`,
+    ]
   },
 })
 

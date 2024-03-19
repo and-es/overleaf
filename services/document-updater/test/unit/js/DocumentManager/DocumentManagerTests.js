@@ -42,6 +42,7 @@ describe('DocumentManager', function () {
     this.lastUpdatedAt = Date.now()
     this.lastUpdatedBy = 'last-author-id'
     this.source = 'external-source'
+    this.historyRangesSupport = false
   })
 
   afterEach(function () {
@@ -335,7 +336,10 @@ describe('DocumentManager', function () {
             this.ranges,
             this.pathname,
             this.projectHistoryId,
-            this.unflushedTime
+            this.unflushedTime,
+            this.lastUpdatedAt,
+            this.lastUpdatedBy,
+            this.historyRangesSupport
           )
         this.DocumentManager.getDoc(this.project_id, this.doc_id, this.callback)
       })
@@ -356,7 +360,8 @@ describe('DocumentManager', function () {
             this.pathname,
             this.projectHistoryId,
             this.unflushedTime,
-            true
+            true,
+            this.historyRangesSupport
           )
           .should.equal(true)
       })
@@ -380,7 +385,8 @@ describe('DocumentManager', function () {
             this.version,
             this.ranges,
             this.pathname,
-            this.projectHistoryId
+            this.projectHistoryId,
+            this.historyRangesSupport
           )
         this.RedisManager.putDocInMemory = sinon.stub().yields()
         this.DocumentManager.getDoc(this.project_id, this.doc_id, this.callback)
@@ -407,7 +413,8 @@ describe('DocumentManager', function () {
             this.version,
             this.ranges,
             this.pathname,
-            this.projectHistoryId
+            this.projectHistoryId,
+            this.historyRangesSupport
           )
           .should.equal(true)
       })
@@ -422,7 +429,8 @@ describe('DocumentManager', function () {
             this.pathname,
             this.projectHistoryId,
             null,
-            false
+            false,
+            this.historyRangesSupport
           )
           .should.equal(true)
       })
@@ -731,7 +739,7 @@ describe('DocumentManager', function () {
         .yields(null, this.lines, this.version, this.ranges)
       this.RangesManager.acceptChanges = sinon
         .stub()
-        .yields(null, this.updated_ranges)
+        .returns(this.updated_ranges)
       this.RedisManager.updateDocument = sinon.stub().yields()
     })
 
@@ -825,13 +833,25 @@ describe('DocumentManager', function () {
       this.lines = ['original', 'lines']
       this.ranges = { comments: ['one', 'two', 'three'] }
       this.updated_ranges = { comments: ['one', 'three'] }
+      this.historyRangesSupport = true
       this.DocumentManager.getDoc = sinon
         .stub()
-        .yields(null, this.lines, this.version, this.ranges)
+        .yields(
+          null,
+          this.lines,
+          this.version,
+          this.ranges,
+          this.pathname,
+          this.projectHistoryId,
+          Date.now() - 1e9,
+          true,
+          this.historyRangesSupport
+        )
       this.RangesManager.deleteComment = sinon
         .stub()
-        .yields(null, this.updated_ranges)
+        .returns(this.updated_ranges)
       this.RedisManager.updateDocument = sinon.stub().yields()
+      this.ProjectHistoryRedisManager.queueOps = sinon.stub().yields()
     })
 
     describe('successfully', function () {
@@ -840,6 +860,7 @@ describe('DocumentManager', function () {
           this.project_id,
           this.doc_id,
           this.comment_id,
+          this.user_id,
           this.callback
         )
       })
@@ -866,6 +887,23 @@ describe('DocumentManager', function () {
             [],
             this.updated_ranges,
             {}
+          )
+          .should.equal(true)
+      })
+
+      it('should queue the delete comment operation', function () {
+        this.ProjectHistoryRedisManager.queueOps
+          .calledWith(
+            this.project_id,
+            JSON.stringify({
+              pathname: this.pathname,
+              deleteComment: this.comment_id,
+              meta: {
+                ts: new Date(),
+                user_id: this.user_id,
+              },
+            }),
+            sinon.match.func
           )
           .should.equal(true)
       })

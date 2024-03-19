@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * The purpose of this class is to track a set of inserts and deletes to a document, like
  * track changes in Word. We store these as a set of ShareJs style ranges:
@@ -44,8 +45,21 @@ class RangesTracker {
       comments = []
     }
     this.comments = comments
-    this.setIdSeed(RangesTracker.generateIdSeed())
-    this.resetDirtyState()
+    this.track_changes = false
+    this.id_seed = RangesTracker.generateIdSeed()
+    this.id_increment = 0
+    this._dirtyState = {
+      comment: {
+        moved: {},
+        removed: {},
+        added: {},
+      },
+      change: {
+        moved: {},
+        removed: {},
+        added: {},
+      },
+    }
   }
 
   getIdSeed() {
@@ -181,22 +195,14 @@ class RangesTracker {
       if (change.op.i != null) {
         content = text.slice(change.op.p, change.op.p + change.op.i.length)
         if (content !== change.op.i) {
-          throw new Error(
-            `Change (${JSON.stringify(
-              change
-            )}) doesn't match text (${JSON.stringify(content)})`
-          )
+          throw new Error('insertion does not match text in document')
         }
       }
     }
     for (const comment of this.comments) {
       content = text.slice(comment.op.p, comment.op.p + comment.op.c.length)
       if (content !== comment.op.c) {
-        throw new Error(
-          `Comment (${JSON.stringify(
-            comment
-          )}) doesn't match text (${JSON.stringify(content)})`
-        )
+        throw new Error('comment does not match text in document')
       }
     }
   }
@@ -695,11 +701,7 @@ class RangesTracker {
             modification.p + modification.d.length
           ) !== modification.d
         ) {
-          throw new Error(
-            `deleted content does not match. content: ${JSON.stringify(
-              content
-            )}; modification: ${JSON.stringify(modification)}`
-          )
+          throw new Error('deletion does not match text in document')
         }
         content =
           content.slice(0, modification.p) +

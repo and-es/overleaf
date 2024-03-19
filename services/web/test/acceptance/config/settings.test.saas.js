@@ -2,7 +2,7 @@ const { merge } = require('@overleaf/settings/merge')
 const baseApp = require('../../../config/settings.overrides.saas')
 const baseTest = require('./settings.test.defaults')
 
-const httpAuthUser = 'sharelatex'
+const httpAuthUser = 'overleaf'
 const httpAuthPass = 'password'
 const httpAuthUsers = {}
 httpAuthUsers[httpAuthUser] = httpAuthPass
@@ -49,9 +49,6 @@ const overrides = {
     },
   },
 
-  overleaf: {
-    oauth: undefined,
-  },
   saml: undefined,
 
   // Disable contentful module.

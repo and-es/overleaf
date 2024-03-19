@@ -31,6 +31,7 @@ const ClsiCookieManager = require('./Features/Compile/ClsiCookieManager')(
 const HealthCheckController = require('./Features/HealthCheck/HealthCheckController')
 const ProjectDownloadsController = require('./Features/Downloads/ProjectDownloadsController')
 const FileStoreController = require('./Features/FileStore/FileStoreController')
+const DocumentUpdaterController = require('./Features/DocumentUpdater/DocumentUpdaterController')
 const HistoryController = require('./Features/History/HistoryController')
 const ExportsController = require('./Features/Exports/ExportsController')
 const PasswordResetRouter = require('./Features/PasswordReset/PasswordResetRouter')
@@ -290,6 +291,7 @@ function initialize(webRouter, privateApiRouter, publicApiRouter) {
     '/user/password/update',
     AuthenticationController.requireLogin(),
     RateLimiterMiddleware.rateLimit(rateLimiters.changePassword),
+    PermissionsController.requirePermission('change-password'),
     UserController.changePassword
   )
   webRouter.get(
@@ -488,6 +490,11 @@ function initialize(webRouter, privateApiRouter, publicApiRouter) {
     '/Project/:Project_id/file/:File_id',
     AuthorizationMiddleware.ensureUserCanReadProject,
     FileStoreController.getFile
+  )
+  webRouter.get(
+    '/Project/:Project_id/doc/:Doc_id/download', // "download" suffix to avoid conflict with private API route at doc/:doc_id
+    AuthorizationMiddleware.ensureUserCanReadProject,
+    DocumentUpdaterController.getDoc
   )
   webRouter.post(
     '/project/:Project_id/settings',
@@ -1192,11 +1199,11 @@ function initialize(webRouter, privateApiRouter, publicApiRouter) {
     } else if (!Settings.editorIsOpen) {
       plainTextResponse(res, 'web editor is closed (web)')
     } else {
-      plainTextResponse(res, 'web sharelatex is alive (web)')
+      plainTextResponse(res, 'web is alive (web)')
     }
   })
   privateApiRouter.get('/status', (req, res) => {
-    plainTextResponse(res, 'web sharelatex is alive (api)')
+    plainTextResponse(res, 'web is alive (api)')
   })
 
   // used by kubernetes health-check and acceptance tests
