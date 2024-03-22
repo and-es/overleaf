@@ -224,6 +224,8 @@ function initialize(webRouter, privateApiRouter, publicApiRouter) {
     AuthenticationController.passportLogin
   )
 
+  webRouter.get('/account-suspended', UserPagesController.accountSuspended)
+
   if (Settings.enableLegacyLogin) {
     AuthenticationController.addEndpointToLoginWhitelist('/login/legacy')
     webRouter.get('/login/legacy', UserPagesController.loginPage)
@@ -301,9 +303,14 @@ function initialize(webRouter, privateApiRouter, publicApiRouter) {
     UserController.promises.ensureAffiliationMiddleware,
     UserEmailsController.list
   )
-  webRouter.get('/user/emails/confirm', UserEmailsController.showConfirm)
+  webRouter.get(
+    '/user/emails/confirm',
+    AuthenticationController.requireLogin(),
+    UserEmailsController.showConfirm
+  )
   webRouter.post(
     '/user/emails/confirm',
+    AuthenticationController.requireLogin(),
     RateLimiterMiddleware.rateLimit(rateLimiters.confirmEmail),
     UserEmailsController.confirm
   )

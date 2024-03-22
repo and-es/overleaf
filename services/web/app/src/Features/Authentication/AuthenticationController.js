@@ -121,6 +121,10 @@ const AuthenticationController = {
       return AsyncFormHelper.redirect(req, res, '/login')
     } // OAuth2 'state' mismatch
 
+    if (user.suspended) {
+      return AsyncFormHelper.redirect(req, res, '/account-suspended')
+    }
+
     if (Settings.adminOnlyLogin && !hasAdminAccess(user)) {
       return res.status(403).json({
         message: { type: 'error', text: 'Admin only panel' },
@@ -229,7 +233,7 @@ const AuthenticationController = {
                       'password_compromised_try_again_or_use_known_device_or_reset'
                     )
                     .replace('<0>', '')
-                    .replace('</0>', ' (https://haveibeenpwned.com)')
+                    .replace('</0>', ' (https://haveibeenpwned.com/passwords)')
                     .replace('<1>', '')
                     .replace(
                       '</1>',
