@@ -616,6 +616,9 @@ const ProjectController = {
         compileLogEventsAssignment(cb) {
           SplitTestHandler.getAssignment(req, res, 'compile-log-events', cb)
         },
+        paywallCtaAssignment(cb) {
+          SplitTestHandler.getAssignment(req, res, 'paywall-cta', cb)
+        },
         projectTags(cb) {
           if (!userId) {
             return cb(null, [])
@@ -751,8 +754,8 @@ const ProjectController = {
                 ? // TODO: Create React version of detached page
                   'project/editor_detached'
                 : idePageReact
-                ? 'project/ide-react'
-                : 'project/editor'
+                  ? 'project/ide-react'
+                  : 'project/editor'
 
             res.render(template, {
               title: project.name,

@@ -1,14 +1,11 @@
 import CodeMirrorEditor from '../../../../../frontend/js/features/source-editor/components/codemirror-editor'
 import { EditorProviders } from '../../../helpers/editor-providers'
-import { FC } from 'react'
 import { mockScope } from '../helpers/mock-scope'
 import { metaKey } from '../helpers/meta-key'
 import { docId } from '../helpers/mock-doc'
 import { activeEditorLine } from '../helpers/active-editor-line'
-
-const Container: FC = ({ children }) => (
-  <div style={{ width: 785, height: 785 }}>{children}</div>
-)
+import { TestContainer } from '../helpers/test-container'
+import customLocalStorage from '@/infrastructure/local-storage'
 
 describe('<CodeMirrorEditor/>', { scrollBehavior: false }, function () {
   beforeEach(function () {
@@ -21,11 +18,11 @@ describe('<CodeMirrorEditor/>', { scrollBehavior: false }, function () {
     const scope = mockScope()
 
     cy.mount(
-      <Container>
+      <TestContainer>
         <EditorProviders scope={scope}>
           <CodeMirrorEditor />
         </EditorProviders>
-      </Container>
+      </TestContainer>
     )
 
     // put the cursor on a blank line to type in
@@ -46,11 +43,11 @@ describe('<CodeMirrorEditor/>', { scrollBehavior: false }, function () {
     cy.clock()
 
     cy.mount(
-      <Container>
+      <TestContainer>
         <EditorProviders scope={scope} userSettings={userSettings}>
           <CodeMirrorEditor />
         </EditorProviders>
-      </Container>
+      </TestContainer>
     )
 
     cy.tick(1000)
@@ -94,11 +91,11 @@ describe('<CodeMirrorEditor/>', { scrollBehavior: false }, function () {
     cy.clock()
 
     cy.mount(
-      <Container>
+      <TestContainer>
         <EditorProviders scope={scope} userSettings={userSettings}>
           <CodeMirrorEditor />
         </EditorProviders>
-      </Container>
+      </TestContainer>
     )
 
     cy.tick(1000)
@@ -113,11 +110,11 @@ describe('<CodeMirrorEditor/>', { scrollBehavior: false }, function () {
     const scope = mockScope()
 
     cy.mount(
-      <Container>
+      <TestContainer>
         <EditorProviders scope={scope}>
           <CodeMirrorEditor />
         </EditorProviders>
-      </Container>
+      </TestContainer>
     )
 
     cy.contains('Your introduction goes here!')
@@ -127,11 +124,11 @@ describe('<CodeMirrorEditor/>', { scrollBehavior: false }, function () {
     const scope = mockScope()
 
     cy.mount(
-      <Container>
+      <TestContainer>
         <EditorProviders scope={scope}>
           <CodeMirrorEditor />
         </EditorProviders>
-      </Container>
+      </TestContainer>
     )
 
     // put the cursor on a blank line to type in
@@ -146,11 +143,11 @@ describe('<CodeMirrorEditor/>', { scrollBehavior: false }, function () {
     const scope = mockScope()
 
     cy.mount(
-      <Container>
+      <TestContainer>
         <EditorProviders scope={scope}>
           <CodeMirrorEditor />
         </EditorProviders>
-      </Container>
+      </TestContainer>
     )
 
     // put the cursor on a blank line to type in
@@ -167,11 +164,11 @@ describe('<CodeMirrorEditor/>', { scrollBehavior: false }, function () {
     const scope = mockScope()
 
     cy.mount(
-      <Container>
+      <TestContainer>
         <EditorProviders scope={scope}>
           <CodeMirrorEditor />
         </EditorProviders>
-      </Container>
+      </TestContainer>
     )
 
     // put the cursor on a blank line to type in
@@ -214,11 +211,11 @@ describe('<CodeMirrorEditor/>', { scrollBehavior: false }, function () {
     }
 
     cy.mount(
-      <Container>
+      <TestContainer>
         <EditorProviders scope={scope}>
           <CodeMirrorEditor />
         </EditorProviders>
-      </Container>
+      </TestContainer>
     )
 
     cy.get('.ol-cm-cursorHighlight').should('have.length', 3)
@@ -230,11 +227,11 @@ describe('<CodeMirrorEditor/>', { scrollBehavior: false }, function () {
     scope.permissions.write = false
 
     cy.mount(
-      <Container>
+      <TestContainer>
         <EditorProviders scope={scope}>
           <CodeMirrorEditor />
         </EditorProviders>
-      </Container>
+      </TestContainer>
     )
 
     // Handling the thrown error on failing to type text
@@ -257,11 +254,11 @@ describe('<CodeMirrorEditor/>', { scrollBehavior: false }, function () {
     const scope = mockScope()
 
     cy.mount(
-      <Container>
+      <TestContainer>
         <EditorProviders scope={scope}>
           <CodeMirrorEditor />
         </EditorProviders>
-      </Container>
+      </TestContainer>
     )
 
     // put the cursor on a blank line to type in
@@ -280,11 +277,11 @@ describe('<CodeMirrorEditor/>', { scrollBehavior: false }, function () {
     const scope = mockScope()
 
     cy.mount(
-      <Container>
+      <TestContainer>
         <EditorProviders scope={scope}>
           <CodeMirrorEditor />
         </EditorProviders>
-      </Container>
+      </TestContainer>
     )
 
     // select foldable line
@@ -324,11 +321,11 @@ describe('<CodeMirrorEditor/>', { scrollBehavior: false }, function () {
     const userSettings = { mode: 'vim' }
 
     cy.mount(
-      <Container>
+      <TestContainer>
         <EditorProviders scope={scope} userSettings={userSettings}>
           <CodeMirrorEditor />
         </EditorProviders>
-      </Container>
+      </TestContainer>
     )
 
     // Compile on initial load
@@ -356,11 +353,11 @@ describe('<CodeMirrorEditor/>', { scrollBehavior: false }, function () {
     const scope = mockScope()
 
     cy.mount(
-      <Container>
+      <TestContainer>
         <EditorProviders scope={scope}>
           <CodeMirrorEditor />
         </EditorProviders>
-      </Container>
+      </TestContainer>
     )
 
     cy.get('.cm-line').eq(16).as('line')
@@ -483,11 +480,11 @@ describe('<CodeMirrorEditor/>', { scrollBehavior: false }, function () {
     const scope = mockScope()
 
     cy.mount(
-      <Container>
+      <TestContainer>
         <EditorProviders scope={scope}>
           <CodeMirrorEditor />
         </EditorProviders>
-      </Container>
+      </TestContainer>
     )
 
     // Open the search panel
@@ -559,20 +556,17 @@ describe('<CodeMirrorEditor/>', { scrollBehavior: false }, function () {
   it('restores stored cursor and scroll position', function () {
     const scope = mockScope()
 
-    window.localStorage.setItem(
-      `doc.position.${docId}`,
-      JSON.stringify({
-        cursorPosition: { row: 50, column: 5 },
-        firstVisibleLine: 45,
-      })
-    )
+    customLocalStorage.setItem(`doc.position.${docId}`, {
+      cursorPosition: { row: 50, column: 5 },
+      firstVisibleLine: 45,
+    })
 
     cy.mount(
-      <Container>
+      <TestContainer>
         <EditorProviders scope={scope}>
           <CodeMirrorEditor />
         </EditorProviders>
-      </Container>
+      </TestContainer>
     )
 
     activeEditorLine()

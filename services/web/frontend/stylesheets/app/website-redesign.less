@@ -140,7 +140,9 @@
       .info-card {
         border-radius: 8px;
         height: 100%;
-        box-shadow: 0px 2px 4px 0px #1e253014, 0px 4px 12px 0px #1e25301f;
+        box-shadow:
+          0px 2px 4px 0px #1e253014,
+          0px 4px 12px 0px #1e25301f;
         border-top: 8px solid var(--sapphire-blue);
         padding: 32px 40px 32px 40px;
 
@@ -345,7 +347,8 @@
       }
 
       video {
-        box-shadow: 0px 4px 6px 0px rgba(30, 37, 48, 0.12),
+        box-shadow:
+          0px 4px 6px 0px rgba(30, 37, 48, 0.12),
           0px 8px 16px 0px rgba(30, 37, 48, 0.12);
         max-height: 100%;
         width: auto;
@@ -941,11 +944,20 @@
 
   .inline-green-link {
     color: var(--emerald-green);
+    text-decoration: underline;
+    // text-decoration-;skip-ink is for letter with descender (like 'g' and 'y')
+    // this will force underline to not skip the descender
+    text-decoration-skip-ink: none;
 
     &:hover {
       color: var(--emerald-green-dark);
     }
-    text-decoration: underline;
+
+    // for accessibility with keyboard navigation
+    &:focus {
+      outline: 2px solid var(--emerald-green);
+      outline-offset: 1px;
+    }
   }
 
   .white-link {
@@ -998,7 +1010,7 @@
     font-size: 1.875rem;
     line-height: 1.333;
     font-weight: 600;
-    quotes: '\201C''\201D'; // override default quotes
+    quotes: '\201C' '\201D'; // override default quotes
     padding: unset;
     margin: unset;
     font-family: 'Noto Sans', sans-serif;

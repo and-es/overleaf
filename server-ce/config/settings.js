@@ -256,16 +256,16 @@ const settings = {
 
   apis: {
     web: {
-      url: 'http://localhost:3000',
+      url: 'http://127.0.0.1:3000',
       user: httpAuthUser,
       pass: httpAuthPass,
     },
     project_history: {
       sendProjectStructureOps: true,
-      url: 'http://localhost:3054',
+      url: 'http://127.0.0.1:3054',
     },
     v1_history: {
-      url: process.env.V1_HISTORY_URL || 'http://localhost:3100/api',
+      url: process.env.V1_HISTORY_URL || 'http://127.0.0.1:3100/api',
       user: 'staging',
       pass: process.env.STAGING_PASSWORD,
       requestTimeout: parseInt(
@@ -382,9 +382,7 @@ if (process.env.OVERLEAF_EMAIL_FROM_ADDRESS != null) {
 
 // i18n
 if (process.env.OVERLEAF_LANG_DOMAIN_MAPPING != null) {
-  settings.i18n.subdomainLang = parse(
-    process.env.OVERLEAF_LANG_DOMAIN_MAPPING
-  )
+  settings.i18n.subdomainLang = parse(process.env.OVERLEAF_LANG_DOMAIN_MAPPING)
 }
 
 // Password Settings
@@ -411,7 +409,7 @@ if (
 
 if (parse(process.env.OVERLEAF_IS_SERVER_PRO) === true) {
   settings.bypassPercentageRollouts = true
-  settings.apis.references = { url: 'http://localhost:3040' }
+  settings.apis.references = { url: 'http://127.0.0.1:3040' }
 }
 
 // Compiler

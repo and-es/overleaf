@@ -1,11 +1,17 @@
-export type Update = TextUpdate | AddDocUpdate | AddFileUpdate | RenameUpdate | DeleteCommentUpdate
+export type Update =
+  | TextUpdate
+  | AddDocUpdate
+  | AddFileUpdate
+  | RenameUpdate
+  | DeleteCommentUpdate
 
 export type UpdateMeta = {
   user_id: string
-  ts: string
+  ts: number
   source?: string
   type?: string
   origin?: RawOrigin
+  tc?: string
 }
 
 export type TextUpdate = {
@@ -15,6 +21,7 @@ export type TextUpdate = {
   meta: UpdateMeta & {
     pathname: string
     doc_length: number
+    history_doc_length?: number
   }
 }
 
@@ -52,17 +59,32 @@ export type Op = InsertOp | DeleteOp | CommentOp
 export type InsertOp = {
   i: string
   p: number
+  u?: boolean
+  hpos?: number
+  trackedDeleteRejection?: boolean
+  commentIds?: string[]
 }
 
 export type DeleteOp = {
   d: string
   p: number
+  u?: boolean
+  hpos?: number
+  trackedChanges?: TrackedChangesInsideDelete[]
+}
+
+export type TrackedChangesInsideDelete = {
+  type: 'insert' | 'delete'
+  offset: number
+  length: number
 }
 
 export type CommentOp = {
   c: string
   p: number
   t: string
+  hpos?: number
+  hlen?: number
 }
 
 export type UpdateWithBlob = {
@@ -73,3 +95,16 @@ export type UpdateWithBlob = {
 export type RawOrigin = {
   kind: string
 }
+
+export type TrackingProps = {
+  type: 'insert' | 'delete' | 'none'
+  userId: string
+  ts: string
+}
+
+export type RawScanOp =
+  | number
+  | string
+  | { r: number; tracking?: TrackingProps }
+  | { i: string; tracking?: TrackingProps; commentIds?: string[] }
+  | { d: number; tracking?: TrackingProps }

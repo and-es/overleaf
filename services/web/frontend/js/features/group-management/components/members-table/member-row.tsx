@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { User } from '../../../../../../types/group-management/user'
 import Badge from '../../../../shared/components/badge'
 import Tooltip from '../../../../shared/components/tooltip'
-import type { ManagedUserAlert } from '../../utils/types'
+import type { GroupUserAlert } from '../../utils/types'
 import ManagedUserStatus from './managed-user-status'
 import SSOStatus from './sso-status'
 import DropdownButton from './dropdown-button'
@@ -14,14 +14,16 @@ import getMeta from '@/utils/meta'
 type ManagedUserRowProps = {
   user: User
   openOffboardingModalForUser: (user: User) => void
+  openUnlinkUserModal: (user: User) => void
   groupId: string
-  setManagedUserAlert: Dispatch<SetStateAction<ManagedUserAlert>>
+  setGroupUserAlert: Dispatch<SetStateAction<GroupUserAlert>>
 }
 
 export default function MemberRow({
   user,
   openOffboardingModalForUser,
-  setManagedUserAlert,
+  openUnlinkUserModal,
+  setGroupUserAlert,
   groupId,
 }: ManagedUserRowProps) {
   const { t } = useTranslation()
@@ -95,7 +97,8 @@ export default function MemberRow({
         <DropdownButton
           user={user}
           openOffboardingModalForUser={openOffboardingModalForUser}
-          setManagedUserAlert={setManagedUserAlert}
+          openUnlinkUserModal={openUnlinkUserModal}
+          setGroupUserAlert={setGroupUserAlert}
           groupId={groupId}
         />
       </td>
