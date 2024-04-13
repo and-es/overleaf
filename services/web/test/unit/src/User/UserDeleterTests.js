@@ -100,6 +100,12 @@ describe('UserDeleter', function () {
       deleteOnboardingDataCollection: sinon.stub().resolves(),
     }
 
+    this.EmailHandler = {
+      promises: {
+        sendEmail: sinon.stub().resolves(),
+      },
+    }
+
     this.UserDeleter = SandboxedModule.require(modulePath, {
       requires: {
         '../../models/User': { User },
@@ -119,6 +125,7 @@ describe('UserDeleter', function () {
         '../../infrastructure/Modules': this.Modules,
         '../OnboardingDataCollection/OnboardingDataCollectionManager':
           this.OnboardingDataCollectionManager,
+        '../Email/EmailHandler': this.EmailHandler,
       },
     })
   })
@@ -250,6 +257,18 @@ describe('UserDeleter', function () {
           it('should create a deletedUser', async function () {
             await this.UserDeleter.promises.deleteUser(this.userId, {})
             this.DeletedUserMock.verify()
+          })
+
+          it('should email the user', async function () {
+            await this.UserDeleter.promises.deleteUser(this.userId, {})
+            const emailOptions = {
+              to: 'bob@bob.com',
+              action: 'account deleted',
+              actionDescribed: 'your Overleaf account was deleted',
+            }
+            expect(
+              this.EmailHandler.promises.sendEmail
+            ).to.have.been.calledWith('securityAlert', emailOptions)
           })
         })
 

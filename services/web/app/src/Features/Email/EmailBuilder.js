@@ -527,8 +527,8 @@ templates.groupSSOReauthenticate = ctaTemplate({
     return [
       `Hi,
       <div>
-      Single sign-on for your Overleaf group has been updated. 
-      This means you need to reauthenticate your Overleaf account with your group’s SSO provider. 
+      Single sign-on for your Overleaf group has been updated.
+      This means you need to reauthenticate your Overleaf account with your group’s SSO provider.
       </div>
       `,
     ]

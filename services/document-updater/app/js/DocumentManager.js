@@ -258,6 +258,30 @@ const DocumentManager = {
     )
   },
 
+  async updateCommentState(projectId, docId, commentId, userId, resolved) {
+    const { lines, version, pathname, historyRangesSupport } =
+      await DocumentManager.getDoc(projectId, docId)
+
+    if (lines == null || version == null) {
+      throw new Errors.NotFoundError(`document not found: ${docId}`)
+    }
+
+    if (historyRangesSupport) {
+      await ProjectHistoryRedisManager.promises.queueOps(
+        projectId,
+        JSON.stringify({
+          pathname,
+          commentId,
+          resolved,
+          meta: {
+            ts: new Date(),
+            user_id: userId,
+          },
+        })
+      )
+    }
+  },
+
   async deleteComment(projectId, docId, commentId, userId) {
     const { lines, version, ranges, pathname, historyRangesSupport } =
       await DocumentManager.getDoc(projectId, docId)
@@ -320,7 +344,7 @@ const DocumentManager = {
 
   async resyncDocContents(projectId, docId, path) {
     logger.debug({ projectId, docId, path }, 'start resyncing doc contents')
-    let { lines, version, projectHistoryId } =
+    let { lines, ranges, version, projectHistoryId, historyRangesSupport } =
       await RedisManager.promises.getDoc(projectId, docId)
 
     // To avoid issues where the same docId appears with different paths,
@@ -333,7 +357,7 @@ const DocumentManager = {
         { projectId, docId },
         'resyncing doc contents - not found in redis - retrieving from web'
       )
-      ;({ lines, version, projectHistoryId } =
+      ;({ lines, ranges, version, projectHistoryId, historyRangesSupport } =
         await PersistenceManager.promises.getDoc(projectId, docId, {
           peek: true,
         }))
@@ -349,9 +373,11 @@ const DocumentManager = {
       projectHistoryId,
       docId,
       lines,
+      ranges,
       version,
       // use the path from the resyncProjectStructure update
-      path
+      path,
+      historyRangesSupport
     )
   },
 
@@ -422,6 +448,24 @@ const DocumentManager = {
       projectId,
       docId,
       changeIds
+    )
+  },
+
+  async updateCommentStateWithLock(
+    projectId,
+    docId,
+    threadId,
+    userId,
+    resolved
+  ) {
+    const UpdateManager = require('./UpdateManager')
+    await UpdateManager.promises.lockUpdatesAndDo(
+      DocumentManager.updateCommentState,
+      projectId,
+      docId,
+      threadId,
+      userId,
+      resolved
     )
   },
 
