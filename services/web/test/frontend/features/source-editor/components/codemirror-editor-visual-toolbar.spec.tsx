@@ -1,3 +1,4 @@
+import '../../../helpers/bootstrap-3'
 import { EditorProviders } from '../../../helpers/editor-providers'
 import CodemirrorEditor from '../../../../../frontend/js/features/source-editor/components/codemirror-editor'
 import { mockScope } from '../helpers/mock-scope'
@@ -37,7 +38,7 @@ describe('<CodeMirrorEditor/> toolbar in Rich Text mode', function () {
   beforeEach(function () {
     window.metaAttributesCache.set('ol-preventCompileOnLoad', true)
     cy.interceptEvents()
-    cy.interceptSpelling()
+    cy.interceptMetadata()
   })
 
   it('should handle Undo and Redo', function () {

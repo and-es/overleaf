@@ -21,7 +21,7 @@ const modulePath = require('path').join(
 )
 const MockClient = require('../helpers/MockClient')
 const assert = require('assert')
-const { ObjectId } = require('mongodb')
+const { ObjectId } = require('mongodb-legacy')
 
 describe('EditorController', function () {
   beforeEach(function () {
@@ -955,6 +955,75 @@ describe('EditorController', function () {
       return this.EditorRealTimeController.emitToRoom
         .calledWith(this.project_id, 'rootDocUpdated', this.newRootDocID)
         .should.equal(true)
+    })
+  })
+
+  describe('setMainBibliographyDoc', function () {
+    describe('on success', function () {
+      beforeEach(function (done) {
+        this.mainBibliographyId = 'bib-doc-id'
+        this.ProjectEntityUpdateHandler.setMainBibliographyDoc = sinon
+          .stub()
+          .yields()
+
+        this.callback = sinon.stub().callsFake(done)
+        this.EditorController.setMainBibliographyDoc(
+          this.project_id,
+          this.mainBibliographyId,
+          this.callback
+        )
+      })
+
+      it('should forward the call to the ProjectEntityUpdateHandler', function () {
+        expect(
+          this.ProjectEntityUpdateHandler.setMainBibliographyDoc
+        ).to.have.been.calledWith(this.project_id, this.mainBibliographyId)
+      })
+
+      it('should emit the update to the room', function () {
+        expect(
+          this.EditorRealTimeController.emitToRoom
+        ).to.have.been.calledWith(
+          this.project_id,
+          'mainBibliographyDocUpdated',
+          this.mainBibliographyId
+        )
+      })
+
+      it('should return nothing', function () {
+        expect(this.callback).to.have.been.calledWithExactly()
+      })
+    })
+
+    describe('on error', function () {
+      beforeEach(function (done) {
+        this.mainBibliographyId = 'bib-doc-id'
+        this.error = new Error('oh no')
+        this.ProjectEntityUpdateHandler.setMainBibliographyDoc = sinon
+          .stub()
+          .yields(this.error)
+
+        this.callback = sinon.stub().callsFake(() => done())
+        this.EditorController.setMainBibliographyDoc(
+          this.project_id,
+          this.mainBibliographyId,
+          this.callback
+        )
+      })
+
+      it('should forward the call to the ProjectEntityUpdateHandler', function () {
+        expect(
+          this.ProjectEntityUpdateHandler.setMainBibliographyDoc
+        ).to.have.been.calledWith(this.project_id, this.mainBibliographyId)
+      })
+
+      it('should return the error', function () {
+        expect(this.callback).to.have.been.calledWithExactly(this.error)
+      })
+
+      it('should not emit the update to the room', function () {
+        expect(this.EditorRealTimeController.emitToRoom).to.not.have.been.called
+      })
     })
   })
 })

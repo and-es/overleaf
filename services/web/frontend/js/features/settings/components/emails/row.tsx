@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { UserEmailData } from '../../../../../../types/user-email'
-import { Button } from 'react-bootstrap'
 import Email from './email'
 import InstitutionAndRole from './institution-and-role'
 import EmailCell from './cell'
@@ -9,13 +8,12 @@ import Actions from './actions'
 import { institutionAlreadyLinked } from '../../utils/selectors'
 import { useUserEmailsContext } from '../../context/user-email-context'
 import getMeta from '../../../../utils/meta'
-import { ExposedSettings } from '../../../../../../types/exposed-settings'
 import { ssoAvailableForInstitution } from '../../utils/sso'
 import ReconfirmationInfo from './reconfirmation-info'
 import { useLocation } from '../../../../shared/hooks/use-location'
-import RowWrapper from '@/features/ui/components/bootstrap-5/wrappers/row-wrapper'
-import ColWrapper from '@/features/ui/components/bootstrap-5/wrappers/col-wrapper'
-import { bsClassName } from '@/features/utils/bootstrap-5'
+import OLRow from '@/features/ui/components/ol/ol-row'
+import OLCol from '@/features/ui/components/ol/ol-col'
+import OLButton from '@/features/ui/components/ol/ol-button'
 
 type EmailsRowProps = {
   userEmailData: UserEmailData
@@ -29,30 +27,25 @@ function EmailsRow({ userEmailData }: EmailsRowProps) {
 
   return (
     <>
-      <RowWrapper>
-        <ColWrapper md={4}>
+      <OLRow>
+        <OLCol lg={4}>
           <EmailCell>
             <Email userEmailData={userEmailData} />
           </EmailCell>
-        </ColWrapper>
-        <ColWrapper md={5}>
+        </OLCol>
+        <OLCol lg={5}>
           {userEmailData.affiliation?.institution && (
             <EmailCell>
               <InstitutionAndRole userEmailData={userEmailData} />
             </EmailCell>
           )}
-        </ColWrapper>
-        <ColWrapper md={3}>
-          <EmailCell
-            className={bsClassName({
-              bs5: 'text-md-end',
-              bs3: 'text-md-right',
-            })}
-          >
+        </OLCol>
+        <OLCol lg={3}>
+          <EmailCell className="text-lg-end">
             <Actions userEmailData={userEmailData} />
           </EmailCell>
-        </ColWrapper>
-      </RowWrapper>
+        </OLCol>
+      </OLRow>
 
       {hasSSOAffiliation && (
         <SSOAffiliationInfo userEmailData={userEmailData} />
@@ -67,7 +60,7 @@ type SSOAffiliationInfoProps = {
 }
 
 function SSOAffiliationInfo({ userEmailData }: SSOAffiliationInfoProps) {
-  const { samlInitPath } = getMeta('ol-ExposedSettings') as ExposedSettings
+  const { samlInitPath } = getMeta('ol-ExposedSettings')
   const { t } = useTranslation()
   const { state } = useUserEmailsContext()
   const location = useLocation()
@@ -93,8 +86,8 @@ function SSOAffiliationInfo({ userEmailData }: SSOAffiliationInfoProps) {
 
   if (userEmailData.samlProviderId) {
     return (
-      <RowWrapper>
-        <ColWrapper md={{ span: 8, offset: 4 }}>
+      <OLRow>
+        <OLCol lg={{ span: 8, offset: 4 }}>
           <EmailCell>
             <p>
               <Trans
@@ -111,17 +104,17 @@ function SSOAffiliationInfo({ userEmailData }: SSOAffiliationInfoProps) {
               />
             </p>
           </EmailCell>
-        </ColWrapper>
-      </RowWrapper>
+        </OLCol>
+      </OLRow>
     )
   }
 
   return (
-    <RowWrapper>
-      <ColWrapper md={{ span: 8, offset: 4 }}>
+    <OLRow>
+      <OLCol lg={{ span: 8, offset: 4 }}>
         <div className="horizontal-divider" />
-        <RowWrapper>
-          <ColWrapper md={9}>
+        <OLRow>
+          <OLCol lg={9}>
             <EmailCell>
               <p className="small">
                 <Trans
@@ -151,28 +144,23 @@ function SSOAffiliationInfo({ userEmailData }: SSOAffiliationInfoProps) {
                 </a>
               </p>
             </EmailCell>
-          </ColWrapper>
-          <ColWrapper
-            md={3}
-            className={bsClassName({
-              bs5: 'text-md-end',
-              bs3: 'text-md-right',
-            })}
-          >
+          </OLCol>
+          <OLCol lg={3} className="text-lg-end">
             <EmailCell>
-              <Button
-                bsStyle="primary"
-                className="btn-sm btn-link-accounts"
+              <OLButton
+                variant="primary"
+                className="btn-link-accounts"
                 disabled={linkAccountsButtonDisabled}
                 onClick={handleLinkAccountsButtonClick}
+                size="sm"
               >
                 {t('link_accounts')}
-              </Button>
+              </OLButton>
             </EmailCell>
-          </ColWrapper>
-        </RowWrapper>
-      </ColWrapper>
-    </RowWrapper>
+          </OLCol>
+        </OLRow>
+      </OLCol>
+    </OLRow>
   )
 }
 

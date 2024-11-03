@@ -5,7 +5,7 @@ const AuthorizationManager = require('../Authorization/AuthorizationManager')
 const ProjectEditorHandler = require('../Project/ProjectEditorHandler')
 const Metrics = require('@overleaf/metrics')
 const CollaboratorsGetter = require('../Collaborators/CollaboratorsGetter')
-const CollaboratorsInviteHandler = require('../Collaborators/CollaboratorsInviteHandler')
+const CollaboratorsInviteGetter = require('../Collaborators/CollaboratorsInviteGetter')
 const CollaboratorsHandler = require('../Collaborators/CollaboratorsHandler')
 const PrivilegeLevels = require('../Authorization/PrivilegeLevels')
 const SessionManager = require('../Authentication/SessionManager')
@@ -13,12 +13,7 @@ const Errors = require('../Errors/Errors')
 const DocstoreManager = require('../Docstore/DocstoreManager')
 const logger = require('@overleaf/logger')
 const { expressify } = require('@overleaf/promise-utils')
-const SplitTestHandler = require('../SplitTests/SplitTestHandler')
-const {
-  NEW_COMPILE_TIMEOUT_ENFORCED_CUTOFF,
-  NEW_COMPILE_TIMEOUT_ENFORCED_CUTOFF_DEFAULT_BASELINE,
-} = require('../Compile/CompileManager')
-const UserGetter = require('../User/UserGetter')
+const Settings = require('@overleaf/settings')
 
 module.exports = {
   joinProject: expressify(joinProject),
@@ -32,28 +27,6 @@ module.exports = {
   deleteEntity: expressify(deleteEntity),
   _nameIsAcceptableLength,
 }
-
-const unsupportedSpellcheckLanguages = [
-  'am',
-  'hy',
-  'bn',
-  'gu',
-  'he',
-  'hi',
-  'hu',
-  'is',
-  'kn',
-  'ml',
-  'mr',
-  'or',
-  'ss',
-  'ta',
-  'te',
-  'uk',
-  'uz',
-  'zu',
-  'fi',
-]
 
 async function joinProject(req, res, next) {
   const projectId = req.params.Project_id
@@ -72,58 +45,6 @@ async function joinProject(req, res, next) {
   if (!project) {
     return res.sendStatus(403)
   }
-  // Compile timeout 20s test
-  if (project.features?.compileTimeout <= 60) {
-    const compileAssignment =
-      await SplitTestHandler.promises.getAssignmentForUser(
-        project.owner._id,
-        'compile-backend-class-n2d'
-      )
-    if (compileAssignment?.variant === 'n2d') {
-      const timeoutAssignment =
-        await SplitTestHandler.promises.getAssignmentForUser(
-          project.owner._id,
-          'compile-timeout-20s'
-        )
-      if (timeoutAssignment?.variant === '20s') {
-        // users who were on the 'default' servers at time of original rollout
-        // will have a later cutoff date for the 20s timeout in the next phase
-        // we check the backend class at version 8 (baseline)
-        const owner = await UserGetter.promises.getUser(project.owner._id, {
-          _id: 1,
-          'splitTests.compile-backend-class-n2d': 1,
-        })
-        const backendClassHistory =
-          owner.splitTests?.['compile-backend-class-n2d'] || []
-        const backendClassBaselineVariant = backendClassHistory.find(
-          version => {
-            return version.versionNumber === 8
-          }
-        )?.variantName
-        const timeoutEnforcedCutoff =
-          backendClassBaselineVariant === 'default'
-            ? NEW_COMPILE_TIMEOUT_ENFORCED_CUTOFF_DEFAULT_BASELINE
-            : NEW_COMPILE_TIMEOUT_ENFORCED_CUTOFF
-        if (project.owner.signUpDate > timeoutEnforcedCutoff) {
-          // New users will see a 10s warning and compile fail at 20s
-          project.showNewCompileTimeoutUI = 'active'
-        } else {
-          const existingUserTimeoutAssignment =
-            await SplitTestHandler.promises.getAssignmentForUser(
-              project.owner._id,
-              'compile-timeout-20s-existing-users'
-            )
-          if (existingUserTimeoutAssignment?.variant === '20s') {
-            // Older users in treatment see 10s warning and compile fail at 20s
-            project.showNewCompileTimeoutUI = 'active'
-          } else {
-            // Older users in control aren't limited to 20s, but will see a notice of upcoming changes if compile >20s
-            project.showNewCompileTimeoutUI = 'changing'
-          }
-        }
-      }
-    }
-  }
   // Hide sensitive data if the user is restricted
   if (isRestrictedUser) {
     project.owner = { _id: project.owner._id }
@@ -134,14 +55,13 @@ async function joinProject(req, res, next) {
   if (project.deletedByExternalDataSource) {
     await ProjectDeleter.promises.unmarkAsDeletedByExternalSource(projectId)
   }
-  // disable spellchecking for currently unsupported spell check languages
-  // preserve the value in the db so they can use it again once we add back
-  // support.
-  if (
-    unsupportedSpellcheckLanguages.indexOf(project.spellCheckLanguage) !== -1
-  ) {
-    project.spellCheckLanguage = ''
+
+  if (project.spellCheckLanguage) {
+    project.spellCheckLanguage = await chooseSpellCheckLanguage(
+      project.spellCheckLanguage
+    )
   }
+
   res.json({
     project,
     privilegeLevel,
@@ -186,7 +106,7 @@ async function _buildJoinProjectView(req, projectId, userId) {
     return { project: null, privilegeLevel: null, isRestrictedUser: false }
   }
   const invites =
-    await CollaboratorsInviteHandler.promises.getAllInvites(projectId)
+    await CollaboratorsInviteGetter.promises.getAllInvites(projectId)
   const isTokenMember = await CollaboratorsHandler.promises.userIsTokenMember(
     userId,
     projectId
@@ -342,4 +262,33 @@ async function deleteEntity(req, res, next) {
     userId
   )
   res.sendStatus(204)
+}
+
+const supportedSpellCheckLanguages = new Set(
+  Settings.languages
+    // only include spell-check languages that are available in the client
+    .filter(language => language.dic !== undefined)
+    .map(language => language.code)
+)
+
+async function chooseSpellCheckLanguage(spellCheckLanguage) {
+  if (supportedSpellCheckLanguages.has(spellCheckLanguage)) {
+    return spellCheckLanguage
+  }
+
+  // Preserve the value in the database so they can use it again once we add back support.
+  // Map some server-only languages to a specific variant, or disable spell checking for currently unsupported spell check languages.
+  switch (spellCheckLanguage) {
+    case 'en':
+      // map "English" to "English (American)"
+      return 'en_US'
+
+    case 'no':
+      // map "Norwegian" to "Norwegian (Bokmål)"
+      return 'nb_NO'
+
+    default:
+      // map anything else to "off"
+      return ''
+  }
 }

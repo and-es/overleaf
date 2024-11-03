@@ -1,5 +1,6 @@
 // Needed since eslint gets confused by mocha-each
 /* eslint-disable mocha/prefer-arrow-callback */
+import '../../../helpers/bootstrap-3'
 import { EditorProviders } from '../../../helpers/editor-providers'
 import CodemirrorEditor from '../../../../../frontend/js/features/source-editor/components/codemirror-editor'
 import { mockScope } from '../helpers/mock-scope'
@@ -106,13 +107,10 @@ function checkBordersWithNoMultiColumn(
 describe('<CodeMirrorEditor/> Table editor', function () {
   beforeEach(function () {
     cy.interceptEvents()
-    cy.interceptSpelling()
+
     cy.interceptMathJax()
     cy.interceptCompile('compile', Number.MAX_SAFE_INTEGER)
     window.metaAttributesCache.set('ol-preventCompileOnLoad', true)
-    window.metaAttributesCache.set('ol-inactiveTutorials', [
-      'table-generator-promotion',
-    ])
   })
 
   describe('Table rendering', function () {

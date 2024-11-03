@@ -19,6 +19,10 @@ import HistoryDropdownContent from './dropdown/history-dropdown-content'
 import CompareItems from './dropdown/menu-item/compare-items'
 import CompareVersionDropdown from './dropdown/compare-version-dropdown'
 import { CompareVersionDropdownContentAllHistory } from './dropdown/compare-version-dropdown-content'
+import FileRestoreChange from './file-restore-change'
+import HistoryResyncChange from './history-resync-change'
+import ProjectRestoreChange from './project-restore-change'
+import { bsVersion } from '@/features/utils/bootstrap-5'
 
 type HistoryVersionProps = {
   update: LoadedUpdate
@@ -111,6 +115,7 @@ function HistoryVersion({
               {dropdownActive ? (
                 <HistoryDropdownContent
                   version={update.toV}
+                  endTimestamp={update.meta.end_ts}
                   projectId={projectId}
                   closeDropdownForItem={closeDropdownForItem}
                 />
@@ -119,7 +124,10 @@ function HistoryVersion({
           )}
 
           {selectionState !== 'selected' && !faded ? (
-            <div data-testid="compare-icon-version" className="pull-right">
+            <div
+              data-testid="compare-icon-version"
+              className={bsVersion({ bs3: 'pull-right', bs5: 'float-end' })}
+            >
               {selectionState !== 'withinSelected' ? (
                 <CompareItems
                   updateRange={updateRange}
@@ -164,21 +172,37 @@ function HistoryVersion({
                 label={label}
               />
             ))}
-            <Changes
-              pathnames={update.pathnames}
-              projectOps={update.project_ops}
-            />
-            <MetadataUsersList
-              users={update.meta.users}
-              origin={update.meta.origin}
-              currentUserId={currentUserId}
-            />
-            <Origin origin={update.meta.origin} />
+            <ChangeEntry update={update} />
+            {update.meta.origin?.kind !== 'history-resync' ? (
+              <>
+                <MetadataUsersList
+                  users={update.meta.users}
+                  origin={update.meta.origin}
+                  currentUserId={currentUserId}
+                />
+                <Origin origin={update.meta.origin} />
+              </>
+            ) : null}
           </div>
         </HistoryVersionDetails>
       </div>
     </>
   )
+}
+
+function ChangeEntry({ update }: { update: LoadedUpdate }) {
+  switch (update.meta.origin?.kind) {
+    case 'file-restore':
+      return <FileRestoreChange origin={update.meta.origin} />
+    case 'history-resync':
+      return <HistoryResyncChange />
+    case 'project-restore':
+      return <ProjectRestoreChange origin={update.meta.origin} />
+    default:
+      return (
+        <Changes pathnames={update.pathnames} projectOps={update.project_ops} />
+      )
+  }
 }
 
 export default memo(HistoryVersion)

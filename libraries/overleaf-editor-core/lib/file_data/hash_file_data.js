@@ -6,10 +6,10 @@ const assert = require('check-types').assert
 const Blob = require('../blob')
 const FileData = require('./')
 /**
- * @typedef {import('./string_file_data')} StringFileData
- * @typedef {import('./lazy_string_file_data')} LazyStringFileData
- * @typedef {import('./hollow_string_file_data')} HollowStringFileData
- * @typedef {import('../types').BlobStore} BlobStore
+ * @import StringFileData from './string_file_data'
+ * @import LazyStringFileData from './lazy_string_file_data'
+ * @import HollowStringFileData from './hollow_string_file_data'
+ * @import { BlobStore, RawHashFileData } from '../types'
  */
 
 class HashFileData extends FileData {
@@ -35,8 +35,7 @@ class HashFileData extends FileData {
 
   /**
    *
-   * @param {{hash: string, rangesHash?: string}} raw
-   * @returns
+   * @param {RawHashFileData} raw
    */
   static fromRaw(raw) {
     return new HashFileData(raw.hash, raw.rangesHash)
@@ -44,9 +43,10 @@ class HashFileData extends FileData {
 
   /**
    * @inheritdoc
-   * @returns {{hash: string, rangesHash?: string}}
+   * @returns {RawHashFileData}
    */
   toRaw() {
+    /** @type RawHashFileData */
     const raw = { hash: this.hash }
     if (this.rangesHash) {
       raw.rangesHash = this.rangesHash
@@ -97,6 +97,8 @@ class HashFileData extends FileData {
       throw new Error('Failed to look up rangesHash in blobStore')
     }
     if (!blob) throw new Error('blob not found: ' + this.hash)
+    // TODO(das7pad): inline 2nd path of FileData.createLazyFromBlobs?
+    // @ts-ignore
     return FileData.createLazyFromBlobs(blob, rangesBlob)
   }
 
@@ -110,14 +112,17 @@ class HashFileData extends FileData {
     if (!blob) {
       throw new Error('Failed to look up hash in blobStore')
     }
+    // TODO(das7pad): inline 2nd path of FileData.createHollow?
+    // @ts-ignore
     return FileData.createHollow(blob.getByteLength(), blob.getStringLength())
   }
 
   /**
    * @inheritdoc
-   * @returns {Promise<{hash: string, rangesHash?: string}>}
+   * @returns {Promise<RawHashFileData>}
    */
   async store() {
+    /** @type RawHashFileData */
     const raw = { hash: this.hash }
     if (this.rangesHash) {
       raw.rangesHash = this.rangesHash

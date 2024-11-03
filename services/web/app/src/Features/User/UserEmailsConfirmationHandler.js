@@ -43,7 +43,7 @@ function sendConfirmationEmail(userId, email, emailTemplate, callback) {
   )
 }
 
-async function sendConfirmationCode(email) {
+async function sendConfirmationCode(email, isSecondary) {
   if (!EmailHelper.parseEmail(email)) {
     throw new Error('invalid email')
   }
@@ -55,6 +55,7 @@ async function sendConfirmationCode(email) {
   await EmailHandler.promises.sendEmail('confirmCode', {
     to: email,
     confirmCode,
+    isSecondary,
     category: ['ConfirmEmail'],
   })
 
@@ -132,6 +133,7 @@ UserEmailsConfirmationHandler.promises = {
   sendConfirmationEmail: promisify(sendConfirmationEmail),
   confirmEmailFromToken,
   sendConfirmationCode,
+  sendReconfirmationEmail,
 }
 
 module.exports = UserEmailsConfirmationHandler

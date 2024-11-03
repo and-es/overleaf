@@ -8,7 +8,7 @@ import importOverleafModules from '../../../../macros/import-overleaf-module.mac
 
 const LOG_PREVIEW_LIMIT = 100
 
-const pdfLogsComponents = importOverleafModules('pdfLogsComponents')
+const pdfLogEntriesComponents = importOverleafModules('pdfLogEntriesComponents')
 
 function PdfLogsEntries({ entries, hasErrors }) {
   const { t } = useTranslation()
@@ -25,13 +25,18 @@ function PdfLogsEntries({ entries, hasErrors }) {
         />
       )}
 
-      {pdfLogsComponents.map(({ import: { default: Component }, path }) => (
-        <Component key={path} entries={entries} />
-      ))}
+      {pdfLogEntriesComponents.map(
+        ({ import: { default: Component }, path }) => (
+          <Component key={path} />
+        )
+      )}
 
-      {logEntries.map(logEntry => (
+      {logEntries.map((logEntry, index) => (
         <PdfLogEntry
           key={logEntry.key}
+          index={index}
+          id={logEntry.key}
+          logEntry={logEntry}
           ruleId={logEntry.ruleId}
           headerTitle={logEntry.messageComponent ?? logEntry.message}
           rawContent={logEntry.content}

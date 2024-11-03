@@ -1,3 +1,4 @@
+import '../../../helpers/bootstrap-3'
 import { EditorProviders } from '../../../helpers/editor-providers'
 import CodemirrorEditor from '../../../../../frontend/js/features/source-editor/components/codemirror-editor'
 import { mockScope } from '../helpers/mock-scope'
@@ -23,7 +24,7 @@ describe('<CodeMirrorEditor/> command tooltip in Visual mode', function () {
   beforeEach(function () {
     window.metaAttributesCache.set('ol-preventCompileOnLoad', true)
     cy.interceptEvents()
-    cy.interceptSpelling()
+    cy.interceptMetadata()
   })
 
   it('shows a tooltip for \\href', function () {
@@ -54,8 +55,8 @@ describe('<CodeMirrorEditor/> command tooltip in Visual mode', function () {
     // open the link
     cy.findByRole('button', { name: 'Go to page' }).click()
     cy.get('@window-open').should(
-      'have.been.calledOnceWithExactly',
-      'https://example.com',
+      'have.been.calledWithMatch',
+      Cypress.sinon.match.has('href', 'https://example.com/'),
       '_blank'
     )
 
@@ -112,8 +113,8 @@ describe('<CodeMirrorEditor/> command tooltip in Visual mode', function () {
     // open the link
     cy.findByRole('button', { name: 'Go to page' }).click()
     cy.get('@window-open').should(
-      'have.been.calledOnceWithExactly',
-      'https://example.com',
+      'have.been.calledWithMatch',
+      Cypress.sinon.match.has('href', 'https://example.com/'),
       '_blank'
     )
   })

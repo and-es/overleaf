@@ -4,10 +4,7 @@ import OError from '@overleaf/o-error'
 import DMP from 'diff-match-patch'
 
 /**
- * @typedef {import('./types').DeleteOp} DeleteOp
- * @typedef {import('./types').InsertOp} InsertOp
- * @typedef {import('./types').Op} Op
- * @typedef {import('./types').Update} Update
+ * @import { DeleteOp, InsertOp, Op, Update } from './types'
  */
 
 const MAX_TIME_BETWEEN_UPDATES = 60 * 1000 // one minute
@@ -60,7 +57,7 @@ function adjustLengthByOp(length, op, opts = {}) {
       return length + op.i.length
     }
   } else if ('d' in op && op.d != null) {
-    if (opts.tracked && op.u == null) {
+    if (opts.tracked) {
       // Tracked delete: will be translated into a retain, except where it overlaps tracked inserts.
       for (const change of op.trackedChanges ?? []) {
         if (change.type === 'insert') {
@@ -71,6 +68,8 @@ function adjustLengthByOp(length, op, opts = {}) {
     } else {
       return length - op.d.length
     }
+  } else if ('r' in op && op.r != null) {
+    return length
   } else if ('c' in op && op.c != null) {
     return length
   } else {
@@ -298,7 +297,8 @@ function _concatTwoUpdates(firstUpdate, secondUpdate) {
     firstOp.i != null &&
     secondOp.i != null &&
     secondOpInsideFirstOp &&
-    combinedLengthUnderLimit
+    combinedLengthUnderLimit &&
+    insertOpsInsideSameComments(firstOp, secondOp)
   ) {
     return [
       mergeUpdatesWithOp(firstUpdate, secondUpdate, {
@@ -377,6 +377,10 @@ function _concatTwoUpdates(firstUpdate, secondUpdate) {
         if (firstOp.u && secondOp.u) {
           op.u = true
         }
+        if ('i' in op && secondOp.commentIds != null) {
+          // Make sure that commentIds metadata is propagated to inserts
+          op.commentIds = secondOp.commentIds
+        }
         return mergeUpdatesWithOp(firstUpdate, secondUpdate, op)
       }
     )
@@ -433,4 +437,32 @@ export function diffAsShareJsOps(before, after) {
     }
   }
   return ops
+}
+
+/**
+ * Checks if two insert ops are inside the same comments
+ *
+ * @param {InsertOp} op1
+ * @param {InsertOp} op2
+ * @returns {boolean}
+ */
+function insertOpsInsideSameComments(op1, op2) {
+  const commentIds1 = op1.commentIds
+  const commentIds2 = op2.commentIds
+  if (commentIds1 == null && commentIds2 == null) {
+    // None are inside comments
+    return true
+  }
+
+  if (
+    commentIds1 != null &&
+    commentIds2 != null &&
+    commentIds1.every(id => commentIds2.includes(id)) &&
+    commentIds2.every(id => commentIds1.includes(id))
+  ) {
+    // Both are inside the same comments
+    return true
+  }
+
+  return false
 }

@@ -13,6 +13,7 @@ import { ItemSelectionState } from '../../utils/history-details'
 import CompareVersionDropdown from './dropdown/compare-version-dropdown'
 import { CompareVersionDropdownContentLabelsList } from './dropdown/compare-version-dropdown-content'
 import HistoryDropdownContent from '@/features/history/components/change-list/dropdown/history-dropdown-content'
+import { bsVersion } from '@/features/utils/bootstrap-5'
 
 type LabelListItemProps = {
   version: Version
@@ -91,11 +92,15 @@ function LabelListItem({
             version={version}
             projectId={projectId}
             closeDropdownForItem={closeDropdownForItem}
+            endTimestamp={toVTimestamp * 1000}
           />
         ) : null}
       </HistoryDropdown>
       {selectionState !== 'selected' ? (
-        <div data-testid="compare-icon-version" className="pull-right">
+        <div
+          data-testid="compare-icon-version"
+          className={bsVersion({ bs3: 'pull-right', bs5: 'float-end' })}
+        >
           {selectionState !== 'withinSelected' ? (
             <CompareItems
               updateRange={updateRange}

@@ -10,6 +10,7 @@ import {
   getFoldRange,
 } from '../../utils/tree-query'
 import { closeBracketConfig } from './close-bracket-config'
+import { noSpellCheckProp } from '@/features/source-editor/utils/node-props'
 
 const styleOverrides: Record<string, any> = {
   DocumentClassCtrlSeq: t.keyword,
@@ -52,6 +53,19 @@ const typeMap: Record<string, string[]> = {
   Input: ['$CommandTooltipCommand'],
   Ref: ['$CommandTooltipCommand'],
   UrlCommand: ['$CommandTooltipCommand'],
+  // text formatting commands that can be toggled via the toolbar
+  TextBoldCommand: ['$ToggleTextFormattingCommand'],
+  TextItalicCommand: ['$ToggleTextFormattingCommand'],
+  // text formatting commands that cannot be toggled via the toolbar
+  TextSmallCapsCommand: ['$OtherTextFormattingCommand'],
+  TextTeletypeCommand: ['$OtherTextFormattingCommand'],
+  TextMediumCommand: ['$OtherTextFormattingCommand'],
+  TextSansSerifCommand: ['$OtherTextFormattingCommand'],
+  TextSuperscriptCommand: ['$OtherTextFormattingCommand'],
+  TextSubscriptCommand: ['$OtherTextFormattingCommand'],
+  StrikeOutCommand: ['$OtherTextFormattingCommand'],
+  EmphasisCommand: ['$OtherTextFormattingCommand'],
+  UnderlineCommand: ['$OtherTextFormattingCommand'],
 }
 
 export const LaTeXLanguage = LRLanguage.define({
@@ -105,6 +119,25 @@ export const LaTeXLanguage = LRLanguage.define({
           return content
         },
       }),
+      // disable spell check in these node types when they're inside these parents (empty string = any parent)
+      noSpellCheckProp.add({
+        BibKeyArgument: [['']],
+        BibliographyArgument: [['']],
+        BibliographyStyleArgument: [['']],
+        DocumentClassArgument: [['']],
+        LabelArgument: [['']],
+        PackageArgument: [['']],
+        RefArgument: [['']],
+        OptionalArgument: [
+          ['DocumentClass'],
+          ['IncludeGraphics'],
+          ['LineBreak'],
+          ['UsePackage'],
+          ['FigureEnvironment', 'BeginEnv'],
+        ],
+        ShortTextArgument: [['Date']],
+        TextArgument: [['TabularEnvironment', 'BeginEnv']],
+      }),
       // TODO: does this override groups defined in the grammar?
       NodeProp.group.add(type => {
         const types = []
@@ -129,7 +162,10 @@ export const LaTeXLanguage = LRLanguage.define({
           ) {
             types.push('$TextArgument')
           }
-        } else if (type.name.endsWith('Environment')) {
+        } else if (
+          type.name.endsWith('Environment') &&
+          !['NewEnvironment', 'RenewEnvironment'].includes(type.name)
+        ) {
           types.push('$Environment')
         } else if (type.name.endsWith('Brace')) {
           types.push('$Brace')
@@ -152,9 +188,9 @@ export const LaTeXLanguage = LRLanguage.define({
         'HrefCommand/ShortTextArgument/ShortArg/...': t.link,
         'HrefCommand/UrlArgument/...': t.monospace,
         'CtrlSeq Csname': t.tagName,
-        'DocumentClass/OptionalArgument/ShortOptionalArg/Normal':
-          t.attributeValue,
+        'DocumentClass/OptionalArgument/ShortOptionalArg/...': t.attributeValue,
         'DocumentClass/ShortTextArgument/ShortArg/Normal': t.typeName,
+        'ListEnvironment/BeginEnv/OptionalArgument/...': t.monospace,
         Number: t.number,
         OpenBrace: t.brace,
         CloseBrace: t.brace,
@@ -168,7 +204,7 @@ export const LaTeXLanguage = LRLanguage.define({
         'MathGroup/OpenBrace MathGroup/CloseBrace': t.string,
         'MathTextCommand/TextArgument/OpenBrace MathTextCommand/TextArgument/CloseBrace':
           t.string,
-        'MathOpening/LeftCtrlSeq MathClosing/RightCtrlSeq MathCommand/CtrlSeq MathTextCommand/CtrlSeq':
+        'MathOpening/LeftCtrlSeq MathClosing/RightCtrlSeq MathUnknownCommand/CtrlSeq MathTextCommand/CtrlSeq':
           t.literal,
         MathDelimiter: t.literal,
         DoubleDollar: t.keyword,
@@ -193,6 +229,7 @@ export const LaTeXLanguage = LRLanguage.define({
         'BareFilePathArgument/SpaceDelimitedLiteralArgContent':
           t.attributeValue,
         TrailingContent: t.comment,
+        'Item/OptionalArgument/ShortOptionalArg/...': t.strong,
         // TODO: t.strong, t.emphasis
       }),
     ],

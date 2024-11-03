@@ -34,7 +34,7 @@ describe('UpdateTranslator', function () {
               ts: this.timestamp,
             },
           },
-          blobHash: this.mockBlobHash,
+          blobHashes: { file: this.mockBlobHash },
         },
       ]
 
@@ -72,7 +72,7 @@ describe('UpdateTranslator', function () {
               ts: this.timestamp,
             },
           },
-          blobHash: this.mockBlobHash,
+          blobHashes: { file: this.mockBlobHash },
         },
       ]
 
@@ -180,7 +180,7 @@ describe('UpdateTranslator', function () {
               ts: this.timestamp,
             },
           },
-          blobHash: this.mockBlobHash,
+          blobHashes: { file: this.mockBlobHash },
         },
         {
           update: {
@@ -192,7 +192,7 @@ describe('UpdateTranslator', function () {
               ts: this.timestamp,
             },
           },
-          blobHash: this.mockBlobHash,
+          blobHashes: { file: this.mockBlobHash },
         },
       ]
 
@@ -291,7 +291,7 @@ describe('UpdateTranslator', function () {
             },
             url: 'filestore.example.com/test*test.png',
           },
-          blobHash: this.mockBlobHash,
+          blobHashes: { file: this.mockBlobHash },
         },
       ]
 
@@ -329,7 +329,7 @@ describe('UpdateTranslator', function () {
             },
             url: 'filestore.example.com/test.png',
           },
-          blobHash: this.mockBlobHash,
+          blobHashes: { file: this.mockBlobHash },
         },
       ]
 
@@ -367,7 +367,7 @@ describe('UpdateTranslator', function () {
             },
             url: 'filestore.example.com/folder/test.png',
           },
-          blobHash: this.mockBlobHash,
+          blobHashes: { file: this.mockBlobHash },
         },
       ]
 
@@ -405,7 +405,7 @@ describe('UpdateTranslator', function () {
               ts: this.timestamp,
             },
           },
-          blobHash: this.mockBlobHash,
+          blobHashes: { file: this.mockBlobHash },
         },
       ]
 
@@ -442,7 +442,7 @@ describe('UpdateTranslator', function () {
               ts: this.timestamp,
             },
           },
-          blobHash: this.mockBlobHash,
+          blobHashes: { file: this.mockBlobHash },
         },
       ]
 
@@ -568,6 +568,110 @@ describe('UpdateTranslator', function () {
         ])
       })
 
+      it('should translate retains without tracking data', function () {
+        const updates = [
+          {
+            update: {
+              doc: this.doc_id,
+              op: [
+                {
+                  p: 3,
+                  r: 'lo',
+                },
+              ],
+              v: this.version,
+              meta: {
+                user_id: this.user_id,
+                ts: new Date(this.timestamp).getTime(),
+                pathname: '/main.tex',
+                doc_length: 20,
+              },
+            },
+          },
+        ]
+
+        const changes = this.UpdateTranslator.convertToChanges(
+          this.project_id,
+          updates
+        ).map(change => change.toRaw())
+
+        expect(changes).to.deep.equal([
+          {
+            authors: [],
+            operations: [
+              {
+                pathname: 'main.tex',
+                textOperation: [20],
+              },
+            ],
+            v2Authors: [this.user_id],
+            timestamp: this.timestamp,
+            v2DocVersions: {
+              [this.doc_id]: {
+                pathname: 'main.tex',
+                v: 0,
+              },
+            },
+          },
+        ])
+      })
+
+      it('can translate retains with tracking data', function () {
+        const updates = [
+          {
+            update: {
+              doc: this.doc_id,
+              op: [
+                {
+                  p: 3,
+                  r: 'lo',
+                  tracking: { type: 'none' },
+                },
+              ],
+              v: this.version,
+              meta: {
+                user_id: this.user_id,
+                ts: new Date(this.timestamp).getTime(),
+                pathname: '/main.tex',
+                doc_length: 20,
+              },
+            },
+          },
+        ]
+
+        const changes = this.UpdateTranslator.convertToChanges(
+          this.project_id,
+          updates
+        ).map(change => change.toRaw())
+
+        expect(changes).to.deep.equal([
+          {
+            authors: [],
+            operations: [
+              {
+                pathname: 'main.tex',
+                textOperation: [
+                  3,
+                  {
+                    r: 2,
+                    tracking: { type: 'none' },
+                  },
+                  15,
+                ],
+              },
+            ],
+            v2Authors: [this.user_id],
+            timestamp: this.timestamp,
+            v2DocVersions: {
+              '59bfd450e3028c4d40a1e9ab': {
+                pathname: 'main.tex',
+                v: 0,
+              },
+            },
+          },
+        ])
+      })
+
       it('can translate insertions at the start and end (with zero retained)', function () {
         const updates = [
           {
@@ -672,6 +776,7 @@ describe('UpdateTranslator', function () {
                 { p: 3, d: 'bar' },
                 { p: 5, c: 'comment this', t: 'comment-id-1' },
                 { p: 7, c: 'another comment', t: 'comment-id-2' },
+                { p: 9, c: '', t: 'comment-id-3' },
                 { p: 10, i: 'baz' },
               ],
               v: this.version,
@@ -702,13 +807,16 @@ describe('UpdateTranslator', function () {
                 pathname: 'main.tex',
                 commentId: 'comment-id-1',
                 ranges: [{ pos: 5, length: 12 }],
-                resolved: false,
               },
               {
                 pathname: 'main.tex',
                 commentId: 'comment-id-2',
                 ranges: [{ pos: 7, length: 15 }],
-                resolved: false,
+              },
+              {
+                pathname: 'main.tex',
+                commentId: 'comment-id-3',
+                ranges: [],
               },
               {
                 pathname: 'main.tex',
@@ -887,7 +995,6 @@ describe('UpdateTranslator', function () {
                 pathname: 'main.tex',
                 commentId: 'comment-id',
                 ranges: [{ pos: 11, length: 14 }],
-                resolved: false,
               },
             ],
             v2Authors: [this.user_id],
@@ -935,11 +1042,7 @@ describe('UpdateTranslator', function () {
                   3,
                   {
                     r: 3,
-                    tracking: {
-                      type: 'none',
-                      userId: this.user_id,
-                      ts: new Date(this.timestamp).toISOString(),
-                    },
+                    tracking: { type: 'none' },
                   },
                   14,
                 ],
@@ -966,7 +1069,11 @@ describe('UpdateTranslator', function () {
                 { i: 'inserted', p: 5 },
                 { d: 'deleted', p: 20 },
                 { i: 'rejected deletion', p: 30, trackedDeleteRejection: true },
-                { d: 'rejected insertion', p: 50, u: true },
+                {
+                  d: 'rejected insertion',
+                  p: 50,
+                  trackedChanges: [{ type: 'insert', offset: 0, length: 18 }],
+                },
               ],
               v: this.version,
               meta: {
@@ -1014,11 +1121,7 @@ describe('UpdateTranslator', function () {
                   3,
                   {
                     r: 17,
-                    tracking: {
-                      type: 'none',
-                      userId: this.user_id,
-                      ts: new Date(this.timestamp).toISOString(),
-                    },
+                    tracking: { type: 'none' },
                   },
                   3,
                   -18,

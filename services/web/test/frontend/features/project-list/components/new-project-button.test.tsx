@@ -3,6 +3,7 @@ import { expect } from 'chai'
 import fetchMock from 'fetch-mock'
 import NewProjectButton from '../../../../../frontend/js/features/project-list/components/new-project-button'
 import { renderWithProjectListContext } from '../helpers/render-with-context'
+import getMeta from '@/utils/meta'
 
 describe('<NewProjectButton />', function () {
   beforeEach(function () {
@@ -11,10 +12,10 @@ describe('<NewProjectButton />', function () {
 
   describe('for every user (affiliated and non-affiliated)', function () {
     beforeEach(function () {
-      window.metaAttributesCache.set('ol-ExposedSettings', {
+      Object.assign(getMeta('ol-ExposedSettings'), {
         templateLinks: [
           {
-            name: 'Academic Journal',
+            name: 'Journal articles',
             url: '/gallery/tagged/academic-journal',
           },
           {
@@ -32,10 +33,6 @@ describe('<NewProjectButton />', function () {
       fireEvent.click(newProjectButton)
     })
 
-    afterEach(function () {
-      window.metaAttributesCache = new Map()
-    })
-
     it('shows the correct dropdown menu', function () {
       // static menu
       screen.getByText('Blank Project')
@@ -47,7 +44,7 @@ describe('<NewProjectButton />', function () {
       screen.getByText('Templates')
 
       // dynamic menu based on templateLinks
-      screen.getByText('Academic Journal')
+      screen.getByText('Journal articles')
       screen.getByText('View All')
     })
 
@@ -80,10 +77,10 @@ describe('<NewProjectButton />', function () {
 
   describe('for affiliated user with custom templates', function () {
     beforeEach(function () {
-      window.metaAttributesCache.set('ol-ExposedSettings', {
+      Object.assign(getMeta('ol-ExposedSettings'), {
         templateLinks: [
           {
-            name: 'Academic Journal',
+            name: 'Journal articles',
             url: '/gallery/tagged/academic-journal',
           },
           {
@@ -99,10 +96,6 @@ describe('<NewProjectButton />', function () {
           url: '/edu/test-new-template',
         },
       ])
-    })
-
-    afterEach(function () {
-      window.metaAttributesCache = new Map()
     })
 
     it('shows the correct dropdown menu', function () {
@@ -134,7 +127,7 @@ describe('<NewProjectButton />', function () {
       screen.getByText('Templates')
 
       // dynamic menu based on templateLinks
-      screen.getByText('Academic Journal')
+      screen.getByText('Journal articles')
       screen.getByText('View All')
     })
   })

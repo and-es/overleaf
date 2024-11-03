@@ -1,11 +1,8 @@
 // @ts-check
+const _ = require('lodash')
 
 /**
- * @typedef {import('./types').CommentOp} CommentOp
- * @typedef {import('./types').DeleteOp} DeleteOp
- * @typedef {import('./types').InsertOp} InsertOp
- * @typedef {import('./types').Op} Op
- * @typedef {import('./types').TrackedChange} TrackedChange
+ * @import { CommentOp, DeleteOp, InsertOp, Op, TrackedChange } from './types'
  */
 
 /**
@@ -39,6 +36,22 @@ function isComment(op) {
 }
 
 /**
+ * Get the length of a document from its lines
+ *
+ * @param {string[]} lines
+ * @returns {number}
+ */
+function getDocLength(lines) {
+  let docLength = _.reduce(lines, (chars, line) => chars + line.length, 0)
+  // Add newline characters. Lines are joined by newlines, but the last line
+  // doesn't include a newline. We must make a special case for an empty list
+  // so that it doesn't report a doc length of -1.
+  docLength += Math.max(lines.length - 1, 0)
+
+  return docLength
+}
+
+/**
  * Adds given tracked deletes to the given content.
  *
  * The history system includes tracked deletes in the document content.
@@ -66,4 +79,28 @@ function addTrackedDeletesToContent(content, trackedChanges) {
   return result
 }
 
-module.exports = { isInsert, isDelete, isComment, addTrackedDeletesToContent }
+/**
+ * checks if the given originOrSource should be treated as a source or origin
+ * TODO: remove this hack and remove all "source" references
+ */
+function extractOriginOrSource(originOrSource) {
+  let source = null
+  let origin = null
+
+  if (typeof originOrSource === 'string') {
+    source = originOrSource
+  } else if (originOrSource && typeof originOrSource === 'object') {
+    origin = originOrSource
+  }
+
+  return { source, origin }
+}
+
+module.exports = {
+  isInsert,
+  isDelete,
+  isComment,
+  addTrackedDeletesToContent,
+  getDocLength,
+  extractOriginOrSource,
+}

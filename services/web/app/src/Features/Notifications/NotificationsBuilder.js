@@ -198,12 +198,13 @@ function ipMatcherAffiliation(userId) {
 function tpdsFileLimit(userId) {
   return {
     key: `tpdsFileLimit-${userId}`,
-    create(projectName, callback) {
+    create(projectName, projectId, callback) {
       if (callback == null) {
         callback = function () {}
       }
       const messageOpts = {
         projectName,
+        projectId,
       }
       NotificationsHandler.createNotification(
         userId,
@@ -281,29 +282,6 @@ function personalAndGroupSubscriptions(userId) {
   }
 }
 
-/**
- * @param {string} [userId]
- */
-function ieeeCollabratecRetirement(userId) {
-  return {
-    key: 'notification-ieee-collabratec-retirement',
-    create(callback) {
-      NotificationsHandler.createNotification(
-        userId,
-        this.key,
-        'notification_ieee_collabratec_retirement',
-        {},
-        new Date('2024-08-01'),
-        false,
-        callback
-      )
-    },
-    deleteAllUnread(callback) {
-      NotificationsHandler.markAsReadByKeyOnlyBulk(this.key, callback)
-    },
-  }
-}
-
 const NotificationsBuilder = {
   // Note: notification keys should be url-safe
   dropboxUnlinkedDueToLapsedReconfirmation,
@@ -315,7 +293,6 @@ const NotificationsBuilder = {
   tpdsFileLimit,
   groupInvitation,
   personalAndGroupSubscriptions,
-  ieeeCollabratecRetirement,
 }
 
 NotificationsBuilder.promises = {
@@ -342,9 +319,6 @@ NotificationsBuilder.promises = {
   },
   personalAndGroupSubscriptions(userId) {
     return promisifyAll(personalAndGroupSubscriptions(userId))
-  },
-  ieeeCollabratecRetirement(userId) {
-    return promisifyAll(ieeeCollabratecRetirement(userId))
   },
 }
 

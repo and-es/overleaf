@@ -8,6 +8,7 @@ const Metrics = require('./Metrics')
 const HistoryManager = require('./HistoryManager')
 const Errors = require('./Errors')
 const RangesManager = require('./RangesManager')
+const { extractOriginOrSource } = require('./Utils')
 
 const MAX_UNFLUSHED_AGE = 300 * 1000 // 5 mins, document should be flushed to mongo this time after a change
 
@@ -17,6 +18,7 @@ const DocumentManager = {
       lines,
       version,
       ranges,
+      resolvedCommentIds,
       pathname,
       projectHistoryId,
       unflushedTime,
@@ -31,6 +33,7 @@ const DocumentManager = {
         lines,
         version,
         ranges,
+        resolvedCommentIds,
         pathname,
         projectHistoryId,
         historyRangesSupport,
@@ -40,6 +43,8 @@ const DocumentManager = {
           projectId,
           docId,
           lines,
+          ranges,
+          resolvedCommentIds,
           version,
           pathname,
           projectHistoryId,
@@ -53,6 +58,7 @@ const DocumentManager = {
         lines,
         version,
         ranges,
+        resolvedCommentIds,
         pathname,
         projectHistoryId,
         historyRangesSupport
@@ -61,6 +67,7 @@ const DocumentManager = {
         lines,
         version,
         ranges: ranges || {},
+        resolvedCommentIds,
         pathname,
         projectHistoryId,
         unflushedTime: null,
@@ -74,6 +81,7 @@ const DocumentManager = {
         ranges,
         pathname,
         projectHistoryId,
+        resolvedCommentIds,
         unflushedTime,
         alreadyLoaded: true,
         historyRangesSupport,
@@ -104,7 +112,7 @@ const DocumentManager = {
     }
   },
 
-  async setDoc(projectId, docId, newLines, source, userId, undoing) {
+  async setDoc(projectId, docId, newLines, originOrSource, userId, undoing) {
     if (newLines == null) {
       throw new Error('No lines were provided to setDoc')
     }
@@ -134,15 +142,22 @@ const DocumentManager = {
         o.u = true
       } // Turn on undo flag for each op for track changes
     }
+
+    const { origin, source } = extractOriginOrSource(originOrSource)
+
     const update = {
       doc: docId,
       op,
       v: version,
       meta: {
         type: 'external',
-        source,
         user_id: userId,
       },
+    }
+    if (origin) {
+      update.meta.origin = origin
+    } else if (source) {
+      update.meta.source = source
     }
     // Keep track of external updates, whether they are for live documents
     // (flush) or unloaded documents (evict), and whether the update is a no-op.
@@ -207,7 +222,7 @@ const DocumentManager = {
       version,
       ranges,
       lastUpdatedAt,
-      lastUpdatedBy
+      lastUpdatedBy || null
     )
     await RedisManager.promises.clearUnflushedTime(docId)
     return result
@@ -237,15 +252,25 @@ const DocumentManager = {
       changeIds = []
     }
 
-    const { lines, version, ranges } = await DocumentManager.getDoc(
-      projectId,
-      docId
-    )
+    const {
+      lines,
+      version,
+      ranges,
+      pathname,
+      projectHistoryId,
+      historyRangesSupport,
+    } = await DocumentManager.getDoc(projectId, docId)
     if (lines == null || version == null) {
       throw new Errors.NotFoundError(`document not found: ${docId}`)
     }
 
-    const newRanges = RangesManager.acceptChanges(changeIds, ranges)
+    const newRanges = RangesManager.acceptChanges(
+      projectId,
+      docId,
+      changeIds,
+      ranges,
+      lines
+    )
 
     await RedisManager.promises.updateDocument(
       projectId,
@@ -256,6 +281,26 @@ const DocumentManager = {
       newRanges,
       {}
     )
+
+    if (historyRangesSupport) {
+      const historyUpdates = RangesManager.getHistoryUpdatesForAcceptedChanges({
+        docId,
+        acceptedChangeIds: changeIds,
+        changes: ranges.changes || [],
+        lines,
+        pathname,
+        projectHistoryId,
+      })
+
+      if (historyUpdates.length === 0) {
+        return
+      }
+
+      await ProjectHistoryRedisManager.promises.queueOps(
+        projectId,
+        ...historyUpdates.map(op => JSON.stringify(op))
+      )
+    }
   },
 
   async updateCommentState(projectId, docId, commentId, userId, resolved) {
@@ -267,6 +312,8 @@ const DocumentManager = {
     }
 
     if (historyRangesSupport) {
+      await RedisManager.promises.updateCommentState(docId, commentId, resolved)
+
       await ProjectHistoryRedisManager.promises.queueOps(
         projectId,
         JSON.stringify({
@@ -302,6 +349,7 @@ const DocumentManager = {
     )
 
     if (historyRangesSupport) {
+      await RedisManager.promises.updateCommentState(docId, commentId, false)
       await ProjectHistoryRedisManager.promises.queueOps(
         projectId,
         JSON.stringify({
@@ -342,10 +390,16 @@ const DocumentManager = {
     return { lines, version }
   },
 
-  async resyncDocContents(projectId, docId, path) {
+  async resyncDocContents(projectId, docId, path, opts = {}) {
     logger.debug({ projectId, docId, path }, 'start resyncing doc contents')
-    let { lines, ranges, version, projectHistoryId, historyRangesSupport } =
-      await RedisManager.promises.getDoc(projectId, docId)
+    let {
+      lines,
+      ranges,
+      resolvedCommentIds,
+      version,
+      projectHistoryId,
+      historyRangesSupport,
+    } = await RedisManager.promises.getDoc(projectId, docId)
 
     // To avoid issues where the same docId appears with different paths,
     // we use the path from the resyncProjectStructure update.  If we used
@@ -357,10 +411,16 @@ const DocumentManager = {
         { projectId, docId },
         'resyncing doc contents - not found in redis - retrieving from web'
       )
-      ;({ lines, ranges, version, projectHistoryId, historyRangesSupport } =
-        await PersistenceManager.promises.getDoc(projectId, docId, {
-          peek: true,
-        }))
+      ;({
+        lines,
+        ranges,
+        resolvedCommentIds,
+        version,
+        projectHistoryId,
+        historyRangesSupport,
+      } = await PersistenceManager.promises.getDoc(projectId, docId, {
+        peek: true,
+      }))
     } else {
       logger.debug(
         { projectId, docId },
@@ -368,17 +428,29 @@ const DocumentManager = {
       )
     }
 
+    if (opts.historyRangesMigration) {
+      historyRangesSupport = opts.historyRangesMigration === 'forwards'
+    }
+
     await ProjectHistoryRedisManager.promises.queueResyncDocContent(
       projectId,
       projectHistoryId,
       docId,
       lines,
-      ranges,
+      ranges ?? {},
+      resolvedCommentIds,
       version,
       // use the path from the resyncProjectStructure update
       path,
       historyRangesSupport
     )
+
+    if (opts.historyRangesMigration) {
+      await RedisManager.promises.setHistoryRangesSupportFlag(
+        docId,
+        historyRangesSupport
+      )
+    }
   },
 
   async getDocWithLock(projectId, docId) {
@@ -492,14 +564,14 @@ const DocumentManager = {
     )
   },
 
-  async resyncDocContentsWithLock(projectId, docId, path, callback) {
+  async resyncDocContentsWithLock(projectId, docId, path, opts) {
     const UpdateManager = require('./UpdateManager')
     await UpdateManager.promises.lockUpdatesAndDo(
       DocumentManager.resyncDocContents,
       projectId,
       docId,
       path,
-      callback
+      opts
     )
   },
 }

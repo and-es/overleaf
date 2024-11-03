@@ -10,10 +10,12 @@ describe('<SettingsSpellCheckLanguage />', function () {
     {
       name: 'Lang 1',
       code: 'lang-1',
+      dic: 'lang_1',
     },
     {
       name: 'Lang 2',
       code: 'lang-2',
+      dic: 'lang_2',
     },
   ]
 
@@ -23,7 +25,6 @@ describe('<SettingsSpellCheckLanguage />', function () {
 
   afterEach(function () {
     fetchMock.reset()
-    window.metaAttributesCache = new Map()
   })
 
   it('shows correct menu', async function () {

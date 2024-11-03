@@ -1,3 +1,4 @@
+import '../../../../helpers/bootstrap-3'
 import sinon from 'sinon'
 import MemberRow from '@/features/group-management/components/members-table/member-row'
 import { GroupMembersProvider } from '@/features/group-management/context/group-members-context'
@@ -7,12 +8,6 @@ describe('MemberRow', function () {
   const subscriptionId = '123abc'
 
   describe('default view', function () {
-    beforeEach(function () {
-      cy.window().then(win => {
-        win.metaAttributesCache = new Map()
-      })
-    })
-
     describe('with an ordinary user', function () {
       let user: User
 
@@ -97,7 +92,10 @@ describe('MemberRow', function () {
       })
 
       it('should render a "Pending invite" badge', function () {
-        cy.get('.badge-new-comment').contains('Pending invite')
+        cy.findByTestId('badge-pending-invite').should(
+          'have.text',
+          'Pending invite'
+        )
       })
     })
 
@@ -181,7 +179,6 @@ describe('MemberRow', function () {
   describe('with Managed Users enabled', function () {
     beforeEach(function () {
       cy.window().then(win => {
-        win.metaAttributesCache = new Map()
         win.metaAttributesCache.set('ol-managedUsersActive', true)
       })
     })
@@ -269,7 +266,10 @@ describe('MemberRow', function () {
       })
 
       it('should render a "Pending invite" badge', function () {
-        cy.get('.badge-new-comment').contains('Pending invite')
+        cy.findByTestId('badge-pending-invite').should(
+          'have.text',
+          'Pending invite'
+        )
       })
     })
 
@@ -353,7 +353,6 @@ describe('MemberRow', function () {
   describe('with Group SSO enabled', function () {
     beforeEach(function () {
       cy.window().then(win => {
-        win.metaAttributesCache = new Map()
         win.metaAttributesCache.set('ol-groupSSOActive', true)
       })
     })
@@ -443,7 +442,10 @@ describe('MemberRow', function () {
       })
 
       it('should render a "Pending invite" badge', function () {
-        cy.get('.badge-new-comment').contains('Pending invite')
+        cy.findByTestId('badge-pending-invite').should(
+          'have.text',
+          'Pending invite'
+        )
       })
     })
 
@@ -527,7 +529,6 @@ describe('MemberRow', function () {
   describe('with Managed Users and Group SSO enabled', function () {
     beforeEach(function () {
       cy.window().then(win => {
-        win.metaAttributesCache = new Map()
         win.metaAttributesCache.set('ol-managedUsersActive', true)
         win.metaAttributesCache.set('ol-groupSSOActive', true)
       })
@@ -618,7 +619,10 @@ describe('MemberRow', function () {
       })
 
       it('should render a "Pending invite" badge', function () {
-        cy.get('.badge-new-comment').contains('Pending invite')
+        cy.findByTestId('badge-pending-invite').should(
+          'have.text',
+          'Pending invite'
+        )
       })
     })
 

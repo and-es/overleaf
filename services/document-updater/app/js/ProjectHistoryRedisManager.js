@@ -9,11 +9,12 @@ const rclient = require('@overleaf/redis-wrapper').createClient(
 const logger = require('@overleaf/logger')
 const metrics = require('./Metrics')
 const { docIsTooLarge } = require('./Limits')
-const { addTrackedDeletesToContent } = require('./Utils')
+const { addTrackedDeletesToContent, extractOriginOrSource } = require('./Utils')
+const HistoryConversions = require('./HistoryConversions')
 const OError = require('@overleaf/o-error')
 
 /**
- * @typedef {import('./types').Ranges} Ranges
+ * @import { Ranges } from './types'
  */
 
 const ProjectHistoryRedisManager = {
@@ -22,6 +23,12 @@ const ProjectHistoryRedisManager = {
     for (const op of ops) {
       metrics.summary('redis.projectHistoryOps', op.length, { status: 'push' })
     }
+
+    // Make sure that this MULTI operation only operates on project
+    // specific keys, i.e. keys that have the project id in curly braces.
+    // The curly braces identify a hash key for Redis and ensures that
+    // the MULTI's operations are all done on the same node in a
+    // cluster environment.
     const multi = rclient.multi()
     // Push the ops onto the project history queue
     multi.rpush(
@@ -47,7 +54,7 @@ const ProjectHistoryRedisManager = {
     entityId,
     userId,
     projectUpdate,
-    source
+    originOrSource
   ) {
     projectUpdate = {
       pathname: projectUpdate.pathname,
@@ -60,7 +67,15 @@ const ProjectHistoryRedisManager = {
       projectHistoryId,
     }
     projectUpdate[entityType] = entityId
-    if (source != null) {
+
+    const { origin, source } = extractOriginOrSource(originOrSource)
+
+    if (origin != null) {
+      projectUpdate.meta.origin = origin
+      if (origin.kind !== 'editor') {
+        projectUpdate.meta.type = 'external'
+      }
+    } else if (source != null) {
       projectUpdate.meta.source = source
       if (source !== 'editor') {
         projectUpdate.meta.type = 'external'
@@ -83,21 +98,44 @@ const ProjectHistoryRedisManager = {
     entityId,
     userId,
     projectUpdate,
-    source
+    originOrSource
   ) {
+    let docLines = projectUpdate.docLines
+    let ranges
+    if (projectUpdate.historyRangesSupport && projectUpdate.ranges) {
+      docLines = addTrackedDeletesToContent(
+        docLines,
+        projectUpdate.ranges.changes ?? []
+      )
+      ranges = HistoryConversions.toHistoryRanges(projectUpdate.ranges)
+    }
+
     projectUpdate = {
       pathname: projectUpdate.pathname,
-      docLines: projectUpdate.docLines,
+      docLines,
       url: projectUpdate.url,
       meta: {
         user_id: userId,
         ts: new Date(),
       },
       version: projectUpdate.version,
+      hash: projectUpdate.hash,
+      metadata: projectUpdate.metadata,
       projectHistoryId,
     }
+    if (ranges) {
+      projectUpdate.ranges = ranges
+    }
     projectUpdate[entityType] = entityId
-    if (source != null) {
+
+    const { origin, source } = extractOriginOrSource(originOrSource)
+
+    if (origin != null) {
+      projectUpdate.meta.origin = origin
+      if (origin.kind !== 'editor') {
+        projectUpdate.meta.type = 'external'
+      }
+    } else if (source != null) {
       projectUpdate.meta.source = source
       if (source !== 'editor') {
         projectUpdate.meta.type = 'external'
@@ -134,6 +172,7 @@ const ProjectHistoryRedisManager = {
    * @param {string} docId
    * @param {string[]} lines
    * @param {Ranges} ranges
+   * @param {string[]} resolvedCommentIds
    * @param {number} version
    * @param {string} pathname
    * @param {boolean} historyRangesSupport
@@ -145,6 +184,7 @@ const ProjectHistoryRedisManager = {
     docId,
     lines,
     ranges,
+    resolvedCommentIds,
     version,
     pathname,
     historyRangesSupport
@@ -170,7 +210,9 @@ const ProjectHistoryRedisManager = {
     }
 
     if (historyRangesSupport) {
-      projectUpdate.resyncDocContent.ranges = ranges
+      projectUpdate.resyncDocContent.ranges =
+        HistoryConversions.toHistoryRanges(ranges)
+      projectUpdate.resyncDocContent.resolvedCommentIds = resolvedCommentIds
     }
 
     const jsonUpdate = JSON.stringify(projectUpdate)

@@ -45,87 +45,131 @@
   }
 }
 
-.btn {
-  // Focus style for all buttons
-  --bs-btn-focus-box-shadow: 0 0 0 2px var(--border-active-dark);
+@mixin action-button {
+  font-size: 0;
+  line-height: 1;
+  border-radius: 50%;
+  color: var(--content-primary);
+  background-color: transparent;
 
-  // Sizes
+  &:hover,
+  &:active,
+  &[aria-expanded='true'] {
+    background-color: rgb($neutral-90, 0.08);
+  }
+}
 
-  // Default size
-  @include ol-button-size(
-    $font-size: var(--font-size-03),
-    $line-height: var(--line-height-03),
-    $padding-y: var(--spacing-03)
+@mixin reset-button() {
+  padding: 0;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  appearance: none;
+}
+
+@mixin modal-lg {
+  max-width: 960px;
+}
+
+@mixin modal-md {
+  max-width: 640px;
+}
+
+@mixin modal-sm {
+  max-width: 480px;
+}
+
+// Toolbar
+@mixin toolbar-sm-height {
+  height: var(--toolbar-small-height);
+}
+
+@mixin toolbar-alt-bg() {
+  background-color: var(--toolbar-alt-bg-color);
+}
+
+@mixin theme($name) {
+  @if index($themes, $name) {
+    [data-theme='#{$name}'] {
+      @content;
+    }
+  } @else {
+    @error 'Theme "#{$name}" is not supported. Supported themes are: #{$themes}.';
+  }
+}
+
+@mixin box-shadow-button-input {
+  box-shadow: 0 0 0 2px var(--blue-30);
+}
+
+@mixin animation($animation) {
+  animation: $animation;
+}
+
+@mixin striped($color: rgba(255, 255, 255, 0.15), $angle: 45deg) {
+  background-image: linear-gradient(
+    $angle,
+    $color 25%,
+    transparent 25%,
+    transparent 50%,
+    $color 50%,
+    $color 75%,
+    transparent 75%,
+    transparent
   );
+}
 
-  &.btn-lg {
-    @include ol-button-size(
-      $font-size: var(--font-size-03),
-      $line-height: var(--line-height-03),
-      $padding-y: var(--spacing-05)
-    );
-  }
+@mixin mask-image($gradient) {
+  // mask-image isn't supported without the -webkit prefix on all browsers we support yet
+  -webkit-mask-image: $gradient;
+  mask-image: $gradient;
+}
 
-  &.btn-sm {
-    @include ol-button-size(
-      $font-size: var(--font-size-02),
-      $line-height: var(--line-height-02),
-      $padding-y: var(--spacing-01),
-      $padding-x: var(--spacing-05)
-    );
-  }
+@mixin premium-background {
+  background-image: var(--premium-gradient);
+}
 
-  // Variants
-  &.btn-primary {
-    @include ol-button-variant(
-      $color: var(--content-primary-dark),
-      $background: var(--bg-accent-01),
-      $hover-background: var(--bg-accent-02),
-      $hover-border: var(--bg-accent-02)
-    );
-  }
+@mixin premium-text {
+  @include premium-background;
 
-  &.btn-secondary {
-    @include ol-button-variant(
-      $color: var(--content-primary),
-      $background: var(--bg-light-primary),
-      $border: var(--border-primary),
-      $hover-background: var(--bg-light-tertiary),
-      $hover-border: var(--border-primary),
-      $borderless: false
-    );
-  }
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: var(--white); // Fallback
+  background-color: var(--blue-70); // Fallback
+}
 
-  &.btn-ghost {
-    @include ol-button-variant(
-      $color: var(--content-primary),
-      $background: var(--bg-light-primary),
-      $hover-background: var(--bg-light-tertiary)
-    );
-  }
+@mixin dark-bg {
+  --link-color: var(--link-color-dark);
+  --link-hover-color: var(--link-hover-color-dark);
+  --link-visited-color: var(--link-visited-color-dark);
+}
 
-  &.btn-danger {
-    @include ol-button-variant(
-      $color: var(--content-primary-dark),
-      $background: var(--bg-danger-01),
-      $border: var(--bg-danger-01),
-      $hover-background: var(--bg-danger-02)
-    );
-  }
+@mixin triangle($direction, $width, $height, $color) {
+  position: absolute;
+  border-color: transparent;
+  border-style: solid;
+  width: 0;
+  height: 0;
 
-  &.btn-danger-ghost {
-    @include ol-button-variant(
-      $color: var(--content-danger),
-      $background: var(--bg-light-primary),
-      $hover-background: var(--bg-danger-03)
-    );
-  }
-
-  &.btn-premium {
-    @include ol-button-variant(
-      $color: var(--content-primary-dark),
-      $background: var(--blue-70)
-    );
-    background: var(--premium-gradient);
+  @if $direction == top {
+    border-width: 0 calc(#{$width} / 2) #{$height} calc(#{$width} / 2);
+    border-bottom-color: $color;
+    border-left-color: transparent;
+    border-right-color: transparent;
+  } @else if $direction == bottom {
+    border-width: #{$height} calc(#{$width} / 2) 0 calc(#{$width} / 2);
+    border-top-color: $color;
+    border-left-color: transparent;
+    border-right-color: transparent;
+  } @else if $direction == right {
+    border-width: calc(#{$height} / 2) 0 calc(#{$height} / 2) #{$width};
+    border-left-color: $color;
+    border-top-color: transparent;
+    border-bottom-color: transparent;
+  } @else if $direction == left {
+    border-width: calc(#{$height} / 2) #{$width} calc(#{$height} / 2) 0;
+    border-right-color: $color;
+    border-top-color: transparent;
+    border-bottom-color: transparent;
   }
 }

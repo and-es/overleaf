@@ -12,7 +12,6 @@ const { Storage } = require('@google-cloud/storage')
 const streamifier = require('streamifier')
 chai.use(require('chai-as-promised'))
 const { ObjectId } = require('mongodb')
-const tk = require('timekeeper')
 const ChildProcess = require('child_process')
 
 const fsWriteFile = promisify(fs.writeFile)
@@ -32,11 +31,15 @@ process.on('unhandledRejection', e => {
 
 // store settings for multiple backends, so that we can test each one.
 // fs will always be available - add others if they are configured
-const BackendSettings = require('./TestConfig')
+const { BackendSettings, s3Config } = require('./TestConfig')
+const {
+  AlreadyWrittenError,
+  NotImplementedError,
+} = require('@overleaf/object-persistor/src/Errors')
 
 describe('Filestore', function () {
   this.timeout(1000 * 10)
-  const filestoreUrl = `http://localhost:${Settings.internal.filestore.port}`
+  const filestoreUrl = `http://127.0.0.1:${Settings.internal.filestore.port}`
 
   const seenSockets = []
   async function expectNoSockets() {
@@ -77,8 +80,10 @@ describe('Filestore', function () {
   }
 
   // redefine the test suite for every available backend
-  Object.keys(BackendSettings).forEach(backend => {
-    describe(backend, function () {
+  for (const [backendVariantWithShardNumber, backendSettings] of Object.entries(
+    BackendSettings
+  )) {
+    describe(backendVariantWithShardNumber, function () {
       let app,
         previousEgress,
         previousIngress,
@@ -88,21 +93,19 @@ describe('Filestore', function () {
 
       const BUCKET_NAMES = [
         process.env.GCS_USER_FILES_BUCKET_NAME,
-        process.env.GCS_PUBLIC_FILES_BUCKET_NAME,
         process.env.GCS_TEMPLATE_FILES_BUCKET_NAME,
         `${process.env.GCS_USER_FILES_BUCKET_NAME}-deleted`,
-        `${process.env.GCS_PUBLIC_FILES_BUCKET_NAME}-deleted`,
         `${process.env.GCS_TEMPLATE_FILES_BUCKET_NAME}-deleted`,
       ]
 
       before(async function () {
         // create the app with the relevant filestore settings
-        Settings.filestore = BackendSettings[backend]
+        Settings.filestore = backendSettings
         app = new FilestoreApp()
         await app.runServer()
       })
 
-      if (BackendSettings[backend].gcs) {
+      if (backendSettings.gcs) {
         before(async function () {
           // create test buckets for gcs
           const storage = new Storage(Settings.filestore.gcs.endpoint)
@@ -166,7 +169,8 @@ describe('Filestore', function () {
           await fsWriteFile(localFileReadPath, constantFileContent)
 
           const readStream = fs.createReadStream(localFileReadPath)
-          await fetch(fileUrl, { method: 'POST', body: readStream })
+          const res = await fetch(fileUrl, { method: 'POST', body: readStream })
+          if (!res.ok) throw new Error(res.statusText)
         })
 
         beforeEach(async function retrievePreviousIngressMetrics() {
@@ -214,7 +218,9 @@ describe('Filestore', function () {
         })
 
         it('should not leak a socket', async function () {
-          await fetch(fileUrl)
+          const res = await fetch(fileUrl)
+          if (!res.ok) throw new Error(res.statusText)
+          await res.text()
           await expectNoSockets()
         })
 
@@ -271,7 +277,41 @@ describe('Filestore', function () {
           expect(body).to.equal(newContent)
         })
 
-        if (['S3Persistor', 'GcsPersistor'].includes(backend)) {
+        describe('IfNoneMatch', function () {
+          if (backendSettings.backend === 'fs') {
+            it('should refuse to handle IfNoneMatch', async function () {
+              await expect(
+                app.persistor.sendStream(
+                  Settings.filestore.stores.user_files,
+                  `${projectId}/${fileId}`,
+                  fs.createReadStream(localFileReadPath),
+                  { ifNoneMatch: '*' }
+                )
+              ).to.be.rejectedWith(NotImplementedError)
+            })
+          } else {
+            it('should reject sendStream on the same key with IfNoneMatch', async function () {
+              await expect(
+                app.persistor.sendStream(
+                  Settings.filestore.stores.user_files,
+                  `${projectId}/${fileId}`,
+                  fs.createReadStream(localFileReadPath),
+                  { ifNoneMatch: '*' }
+                )
+              ).to.be.rejectedWith(AlreadyWrittenError)
+            })
+            it('should allow sendStream on a different key with IfNoneMatch', async function () {
+              await app.persistor.sendStream(
+                Settings.filestore.stores.user_files,
+                `${projectId}/${fileId}-other`,
+                fs.createReadStream(localFileReadPath),
+                { ifNoneMatch: '*' }
+              )
+            })
+          }
+        })
+
+        if (backendSettings.backend !== 'fs') {
           it('should record an egress metric for the upload', async function () {
             const metric = await TestHelper.getMetric(
               filestoreUrl,
@@ -283,6 +323,7 @@ describe('Filestore', function () {
           it('should record an ingress metric when downloading the file', async function () {
             const response = await fetch(fileUrl)
             expect(response.ok).to.be.true
+            await response.text()
             const metric = await TestHelper.getMetric(
               filestoreUrl,
               `${metricPrefix}_ingress`
@@ -297,6 +338,7 @@ describe('Filestore', function () {
               headers: { Range: 'bytes=0-8' },
             })
             expect(response.ok).to.be.true
+            await response.text()
             const metric = await TestHelper.getMetric(
               filestoreUrl,
               `${metricPrefix}_ingress`
@@ -332,7 +374,7 @@ describe('Filestore', function () {
         ]
 
         before(async function () {
-          return Promise.all([
+          return await Promise.all([
             fsWriteFile(localFileReadPaths[0], constantFileContents[0]),
             fsWriteFile(localFileReadPaths[1], constantFileContents[1]),
             fsWriteFile(localFileReadPaths[2], constantFileContents[2]),
@@ -423,7 +465,8 @@ describe('Filestore', function () {
           largeFileContent += Math.random()
 
           const readStream = streamifier.createReadStream(largeFileContent)
-          await fetch(fileUrl, { method: 'POST', body: readStream })
+          const res = await fetch(fileUrl, { method: 'POST', body: readStream })
+          if (!res.ok) throw new Error(res.statusText)
         })
 
         it('should be able to get the file back', async function () {
@@ -451,24 +494,29 @@ describe('Filestore', function () {
         })
       })
 
-      if (backend === 'S3Persistor' || backend === 'FallbackGcsToS3Persistor') {
+      if (
+        (backendSettings.backend === 's3' && !backendSettings.fallback) ||
+        (backendSettings.backend === 'gcs' &&
+          backendSettings.fallback?.backend === 's3')
+      ) {
         describe('with a file in a specific bucket', function () {
           let constantFileContent, fileId, fileUrl, bucketName
 
           beforeEach(async function () {
             constantFileContent = `This is a file in a different S3 bucket ${Math.random()}`
             fileId = new ObjectId().toString()
-            bucketName = new ObjectId().toString()
+            bucketName = `random-bucket-${new ObjectId().toString()}`
             fileUrl = `${filestoreUrl}/bucket/${bucketName}/key/${fileId}`
 
+            const cfg = s3Config()
             const s3ClientSettings = {
               credentials: {
-                accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-                secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+                accessKeyId: process.env.MINIO_ROOT_USER,
+                secretAccessKey: process.env.MINIO_ROOT_PASSWORD,
               },
-              endpoint: process.env.AWS_S3_ENDPOINT,
-              sslEnabled: false,
-              s3ForcePathStyle: true,
+              endpoint: cfg.endpoint,
+              httpOptions: cfg.httpOptions,
+              s3ForcePathStyle: cfg.pathStyle,
             }
 
             const s3 = new S3(s3ClientSettings)
@@ -494,25 +542,23 @@ describe('Filestore', function () {
         })
       }
 
-      if (backend === 'GcsPersistor') {
+      if (backendSettings.backend === 'gcs') {
         describe('when deleting a file in GCS', function () {
-          let fileId, fileUrl, content, error, date
+          let fileId, fileUrl, content, error, dateBefore, dateAfter
 
           beforeEach(async function () {
-            date = new Date()
-            tk.freeze(date)
             fileId = new ObjectId()
             fileUrl = `${filestoreUrl}/project/${projectId}/file/${fileId}`
 
             content = '_wombat_' + Math.random()
 
             const readStream = streamifier.createReadStream(content)
-            await fetch(fileUrl, { method: 'POST', body: readStream })
-            await fetch(fileUrl, { method: 'DELETE' })
-          })
-
-          afterEach(function () {
-            tk.reset()
+            let res = await fetch(fileUrl, { method: 'POST', body: readStream })
+            if (!res.ok) throw new Error(res.statusText)
+            dateBefore = new Date()
+            res = await fetch(fileUrl, { method: 'DELETE' })
+            dateAfter = new Date()
+            if (!res.ok) throw new Error(res.statusText)
           })
 
           it('should not throw an error', function () {
@@ -520,10 +566,16 @@ describe('Filestore', function () {
           })
 
           it('should copy the file to the deleted-files bucket', async function () {
-            await TestHelper.expectPersistorToHaveFile(
+            let date = dateBefore
+            const keys = []
+            while (date <= dateAfter) {
+              keys.push(`${projectId}/${fileId}-${date.toISOString()}`)
+              date = new Date(date.getTime() + 1)
+            }
+            await TestHelper.expectPersistorToHaveSomeFile(
               app.persistor,
               `${Settings.filestore.stores.user_files}-deleted`,
-              `${projectId}/${fileId}-${date.toISOString()}`,
+              keys,
               content
             )
           })
@@ -538,7 +590,7 @@ describe('Filestore', function () {
         })
       }
 
-      if (BackendSettings[backend].fallback) {
+      if (backendSettings.fallback) {
         describe('with a fallback', function () {
           let constantFileContent,
             fileId,
@@ -598,6 +650,7 @@ describe('Filestore', function () {
               it('should not copy the file to the primary', async function () {
                 const response = await fetch(fileUrl)
                 expect(response.ok).to.be.true
+                await response.text()
 
                 await TestHelper.expectPersistorNotToHaveFile(
                   app.persistor.primaryPersistor,
@@ -621,6 +674,7 @@ describe('Filestore', function () {
               it('copies the file to the primary', async function () {
                 const response = await fetch(fileUrl)
                 expect(response.ok).to.be.true
+                await response.text()
                 // wait for the file to copy in the background
                 await msleep(1000)
 
@@ -755,7 +809,11 @@ describe('Filestore', function () {
             beforeEach(async function () {
               const readStream =
                 streamifier.createReadStream(constantFileContent)
-              await fetch(fileUrl, { method: 'POST', body: readStream })
+              const res = await fetch(fileUrl, {
+                method: 'POST',
+                body: readStream,
+              })
+              if (!res.ok) throw new Error(res.statusText)
             })
 
             it('should store the file on the primary', async function () {
@@ -862,7 +920,8 @@ describe('Filestore', function () {
           const stat = await fsStat(localFileReadPath)
           localFileSize = stat.size
           const readStream = fs.createReadStream(localFileReadPath)
-          await fetch(fileUrl, { method: 'POST', body: readStream })
+          const res = await fetch(fileUrl, { method: 'POST', body: readStream })
+          if (!res.ok) throw new Error(res.statusText)
         })
 
         it('should be able get the file back', async function () {
@@ -871,7 +930,7 @@ describe('Filestore', function () {
           expect(body.substring(0, 8)).to.equal('%PDF-1.5')
         })
 
-        if (['S3Persistor', 'GcsPersistor'].includes(backend)) {
+        if (backendSettings.backend !== 'fs') {
           it('should record an egress metric for the upload', async function () {
             const metric = await TestHelper.getMetric(
               filestoreUrl,
@@ -892,6 +951,7 @@ describe('Filestore', function () {
           it('should not time out', async function () {
             const response = await fetch(previewFileUrl)
             expect(response.status).to.equal(200)
+            await response.arrayBuffer()
           })
 
           it('should respond with image data', async function () {
@@ -914,13 +974,16 @@ describe('Filestore', function () {
           it('should not time out', async function () {
             const response = await fetch(previewFileUrl)
             expect(response.status).to.equal(200)
+            await response.arrayBuffer()
           })
 
           it('should not leak sockets', async function () {
             const response1 = await fetch(previewFileUrl)
             expect(response1.status).to.equal(200)
+            // do not read the response body, should be destroyed immediately
             const response2 = await fetch(previewFileUrl)
             expect(response2.status).to.equal(200)
+            // do not read the response body, should be destroyed immediately
             await expectNoSockets()
           })
 
@@ -933,5 +996,5 @@ describe('Filestore', function () {
         })
       })
     })
-  })
+  }
 })

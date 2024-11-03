@@ -51,6 +51,9 @@ async function resyncProject(projectId, options = {}) {
   if (options.origin) {
     body.origin = options.origin
   }
+  if (options.historyRangesMigration) {
+    body.historyRangesMigration = options.historyRangesMigration
+  }
   try {
     await fetchNothing(
       `${settings.apis.project_history.url}/project/${projectId}/resync`,
@@ -135,6 +138,42 @@ async function getCurrentContent(projectId) {
     )
   } catch (err) {
     throw OError.tag(err, 'failed to load project history', { historyId })
+  }
+}
+
+/**
+ * Warning: Don't use this method for large projects. It will eagerly load all
+ * the history data and apply all operations.
+ * @param {string} projectId
+ * @param {number} version
+ *
+ * @returns Promise<object>
+ */
+async function getContentAtVersion(projectId, version) {
+  const project = await ProjectGetter.promises.getProject(projectId, {
+    overleaf: true,
+  })
+  const historyId = project?.overleaf?.history?.id
+  if (!historyId) {
+    throw new OError('project does not have a history id', { projectId })
+  }
+  try {
+    return await fetchJson(
+      `${settings.apis.v1_history.url}/projects/${historyId}/versions/${version}/content`,
+      {
+        method: 'GET',
+        basicAuth: {
+          user: settings.apis.v1_history.user,
+          password: settings.apis.v1_history.pass,
+        },
+      }
+    )
+  } catch (err) {
+    throw OError.tag(
+      err,
+      'failed to load project history snapshot at version',
+      { historyId, version }
+    )
   }
 }
 
@@ -232,5 +271,6 @@ module.exports = {
     injectUserDetails,
     deleteProjectHistory,
     getCurrentContent,
+    getContentAtVersion,
   },
 }

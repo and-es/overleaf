@@ -72,6 +72,51 @@ describe('ChunkTranslator', function () {
                 timestamp: this.date.toISOString(),
                 authors: [this.author1.id],
               },
+              {
+                origin: {
+                  kind: 'file-restore',
+                  version: 1,
+                  path: 'main.tex',
+                  timestamp: this.date.toISOString(),
+                },
+                operations: [
+                  {
+                    pathname: 'main.tex',
+                    newPathname: '',
+                  },
+                ],
+                timestamp: this.date.toISOString(),
+                authors: [this.author1.id],
+              },
+              {
+                origin: {
+                  kind: 'file-restore',
+                  version: 1,
+                  path: 'main.tex',
+                  timestamp: this.date.toISOString(),
+                },
+                operations: [
+                  {
+                    pathname: 'main.tex',
+                    file: {
+                      hash: this.fileHash,
+                      stringLength: 42,
+                    },
+                  },
+                ],
+                timestamp: this.date.toISOString(),
+                authors: [this.author1.id],
+              },
+              {
+                operations: [
+                  {
+                    pathname: 'main.tex',
+                    newPathname: 'main2.tex',
+                  },
+                ],
+                timestamp: this.date.toISOString(),
+                authors: [this.author1.id],
+              },
             ],
           },
         },
@@ -162,6 +207,38 @@ describe('ChunkTranslator', function () {
           }
         )
       })
+
+      it('should return the correct initial text in case of file restore', function (done) {
+        this.ChunkTranslator.convertToDiffUpdates(
+          this.projectId,
+          this.chunk,
+          'main.tex',
+          3,
+          5,
+          (error, param) => {
+            const { initialContent } = param
+            expect(error).to.be.null
+            expect(initialContent).to.equal('Hello world, this is a test')
+            done()
+          }
+        )
+      })
+
+      it('should still find original file in case it was renamed', function (done) {
+        this.ChunkTranslator.convertToDiffUpdates(
+          this.projectId,
+          this.chunk,
+          'main.tex',
+          5,
+          6,
+          (error, param) => {
+            const { initialContent } = param
+            expect(error).to.be.null
+            expect(initialContent).to.equal('Hello world, this is a test')
+            done()
+          }
+        )
+      })
     })
 
     describe('convertToSummarizedUpdates', function () {
@@ -199,6 +276,67 @@ describe('ChunkTranslator', function () {
                 end_ts: this.date.getTime(),
               },
               v: 2,
+            },
+            {
+              pathnames: [],
+              project_ops: [
+                {
+                  remove: {
+                    pathname: 'main.tex',
+                  },
+                },
+              ],
+              meta: {
+                users: [this.author1.id],
+                start_ts: this.date.getTime(),
+                end_ts: this.date.getTime(),
+                origin: {
+                  kind: 'file-restore',
+                  version: 1,
+                  path: 'main.tex',
+                  timestamp: this.date.toISOString(),
+                },
+              },
+              v: 3,
+            },
+            {
+              pathnames: [],
+              project_ops: [
+                {
+                  add: {
+                    pathname: 'main.tex',
+                  },
+                },
+              ],
+              meta: {
+                users: [this.author1.id],
+                start_ts: this.date.getTime(),
+                end_ts: this.date.getTime(),
+                origin: {
+                  kind: 'file-restore',
+                  version: 1,
+                  path: 'main.tex',
+                  timestamp: this.date.toISOString(),
+                },
+              },
+              v: 4,
+            },
+            {
+              pathnames: [],
+              project_ops: [
+                {
+                  rename: {
+                    pathname: 'main.tex',
+                    newPathname: 'main2.tex',
+                  },
+                },
+              ],
+              meta: {
+                users: [this.author1.id],
+                start_ts: this.date.getTime(),
+                end_ts: this.date.getTime(),
+              },
+              v: 5,
             },
           ])
           done()
@@ -2142,11 +2280,7 @@ describe('ChunkTranslator', function () {
                         4, //  Hell|o [planet ]world, this is a test
                         {
                           r: 4,
-                          tracking: {
-                            type: 'none',
-                            userId: this.author1.id,
-                            ts: '2024-01-01T00:00:00.000Z',
-                          },
+                          tracking: { type: 'none' },
                         }, //  Hello pl|[anet ]world, this is a test
                         {
                           r: 3,
@@ -2375,11 +2509,7 @@ describe('ChunkTranslator', function () {
                         2, // Heo |{TEST }planet world, [this] is a test
                         {
                           r: 5,
-                          tracking: {
-                            type: 'none',
-                            userId: '65f1baeb3cee7c3563fbd1d1',
-                            ts: '2024-03-27T13:20:23.253Z',
-                          },
+                          tracking: { type: 'none' },
                         }, // Heo TEST| planet world, [this] is a test
                         14, // Heo TEST planet world, |[this] is a test
                         -4, // Heo TEST planet world, | is a test
@@ -2557,11 +2687,7 @@ describe('ChunkTranslator', function () {
                         -2, // He|o planet world, [this] {TEST }is a test
                         {
                           r: 39,
-                          tracking: {
-                            type: 'none',
-                            userId: this.author1.id,
-                            ts: this.date.toISOString(),
-                          },
+                          tracking: { type: 'none' },
                         },
                       ], // He|o planet world, this TEST is a test
                     },
@@ -2749,6 +2875,175 @@ describe('ChunkTranslator', function () {
             done()
           }
         )
+      })
+
+      describe('whith multiple tracked deletes', function () {
+        beforeEach(function () {
+          this.fileContents = 'Hello planet world universe, this is a test'
+          this.ranges = JSON.stringify({
+            trackedChanges: [
+              {
+                range: { pos: 6, length: 7 },
+                tracking: {
+                  type: 'delete',
+                  userId: this.author1.id,
+                  ts: '2024-01-01T00:00:00.000Z',
+                },
+              },
+              {
+                range: { pos: 18, length: 9 },
+                tracking: {
+                  type: 'delete',
+                  userId: this.author1.id,
+                  ts: '2024-01-01T00:00:00.000Z',
+                },
+              },
+            ],
+          })
+          this.HistoryStoreManager.getProjectBlob
+            .withArgs(this.historyId, this.rangesHash)
+            .yields(null, this.ranges)
+          this.HistoryStoreManager.getProjectBlob
+            .withArgs(this.historyId, this.fileHash)
+            .yields(null, this.fileContents)
+        })
+
+        it('should handle a deletion that spans multiple tracked deletes', function (done) {
+          this.chunk = {
+            chunk: {
+              startVersion: 0,
+              history: {
+                snapshot: {
+                  files: {
+                    'main.tex': {
+                      hash: this.fileHash,
+                      rangesHash: this.rangesHash,
+                      stringLength: this.fileContents.length,
+                    },
+                  },
+                },
+                changes: [
+                  {
+                    operations: [
+                      {
+                        pathname: 'main.tex',
+                        textOperation: [
+                          // [...] is a tracked delete
+                          6, // Hello |[planet ]world[ universe], this is a test
+                          -21, // Hello|, this is a test
+                          16,
+                        ],
+                      },
+                    ],
+                    timestamp: this.date.toISOString(),
+                    authors: [this.author1.id],
+                  },
+                ],
+              },
+            },
+            authors: [this.author1.id],
+          }
+
+          this.ChunkTranslator.convertToDiffUpdates(
+            this.projectId,
+            this.chunk,
+            'main.tex',
+            0,
+            1,
+            (error, diff) => {
+              expect(error).to.be.null
+              expect(diff.updates).to.deep.equal([
+                {
+                  op: [
+                    {
+                      d: 'world',
+                      p: 6,
+                    },
+                  ],
+                  meta: {
+                    users: [this.author1.id],
+                    start_ts: this.date.getTime(),
+                    end_ts: this.date.getTime(),
+                  },
+                  v: 0,
+                },
+              ])
+              done()
+            }
+          )
+        })
+
+        it('should handle a tracked deletion that spans multiple tracked deletes', function (done) {
+          this.chunk = {
+            chunk: {
+              startVersion: 0,
+              history: {
+                snapshot: {
+                  files: {
+                    'main.tex': {
+                      hash: this.fileHash,
+                      rangesHash: this.rangesHash,
+                      stringLength: this.fileContents.length,
+                    },
+                  },
+                },
+                changes: [
+                  {
+                    operations: [
+                      {
+                        pathname: 'main.tex',
+                        textOperation: [
+                          // [...] is a tracked delete
+                          6, // Hello |[planet ]world[ universe], this is a test
+                          {
+                            r: 21,
+                            tracking: {
+                              type: 'delete',
+                              userId: this.author1.id,
+                              ts: '2024-01-01T00:00:00.000Z',
+                            },
+                          }, // Hello [planet world universe]|, this is a test
+                          16,
+                        ],
+                      },
+                    ],
+                    timestamp: this.date.toISOString(),
+                    authors: [this.author1.id],
+                  },
+                ],
+              },
+            },
+            authors: [this.author1.id],
+          }
+
+          this.ChunkTranslator.convertToDiffUpdates(
+            this.projectId,
+            this.chunk,
+            'main.tex',
+            0,
+            1,
+            (error, diff) => {
+              expect(error).to.be.null
+              expect(diff.updates).to.deep.equal([
+                {
+                  op: [
+                    {
+                      d: 'world',
+                      p: 6,
+                    },
+                  ],
+                  meta: {
+                    users: [this.author1.id],
+                    start_ts: this.date.getTime(),
+                    end_ts: this.date.getTime(),
+                  },
+                  v: 0,
+                },
+              ])
+              done()
+            }
+          )
+        })
       })
     })
   })

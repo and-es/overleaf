@@ -1,3 +1,5 @@
+// @ts-check
+
 import _ from 'lodash'
 import { callbackify, promisify } from 'util'
 import { callbackifyMultiResult } from '@overleaf/promise-utils'
@@ -5,7 +7,7 @@ import Settings from '@overleaf/settings'
 import logger from '@overleaf/logger'
 import Metrics from '@overleaf/metrics'
 import OError from '@overleaf/o-error'
-import { File } from 'overleaf-editor-core'
+import { File, Range } from 'overleaf-editor-core'
 import { SyncError } from './Errors.js'
 import { db, ObjectId } from './mongodb.js'
 import * as SnapshotManager from './SnapshotManager.js'
@@ -17,7 +19,14 @@ import * as ErrorRecorder from './ErrorRecorder.js'
 import * as RedisManager from './RedisManager.js'
 import * as HistoryStoreManager from './HistoryStoreManager.js'
 import * as HashManager from './HashManager.js'
+import { isInsert, isDelete } from './Utils.js'
 
+/**
+ * @import { Comment as HistoryComment, TrackedChange as HistoryTrackedChange } from 'overleaf-editor-core'
+ * @import { Comment, Entity, ResyncDocContentUpdate, RetainOp, TrackedChange } from './types'
+ * @import { TrackedChangeTransition, TrackingDirective, TrackingType, Update } from './types'
+ * @import { ProjectStructureUpdate } from './types'
+ */
 const MAX_RESYNC_HISTORY_RECORDS = 100 // keep this many records of previous resyncs
 const EXPIRE_RESYNC_HISTORY_INTERVAL_MS = 90 * 24 * 3600 * 1000 // 90 days
 
@@ -87,7 +96,11 @@ async function _startResyncWithoutLock(projectId, options) {
   syncState.setOrigin(options.origin || { kind: 'history-resync' })
   syncState.startProjectStructureSync()
 
-  await WebApiManager.promises.requestResync(projectId)
+  const webOpts = {}
+  if (options.historyRangesMigration) {
+    webOpts.historyRangesMigration = options.historyRangesMigration
+  }
+  await WebApiManager.promises.requestResync(projectId, webOpts)
   await setResyncState(projectId, syncState)
 }
 
@@ -182,7 +195,7 @@ async function expandSyncUpdates(
   const syncState = await _getResyncState(projectId)
 
   // compute the current snapshot from the most recent chunk
-  const snapshotFiles = await SnapshotManager.promises.getLatestSnapshot(
+  const snapshotFiles = await SnapshotManager.promises.getLatestSnapshotFiles(
     projectId,
     projectHistoryId
   )
@@ -347,10 +360,17 @@ class SyncState {
 }
 
 class SyncUpdateExpander {
+  /**
+   * Build a SyncUpdateExpander
+   *
+   * @param {string} projectId
+   * @param {Record<string, File>} snapshotFiles
+   * @param {string} origin
+   */
   constructor(projectId, snapshotFiles, origin) {
     this.projectId = projectId
     this.files = snapshotFiles
-    this.expandedUpdates = []
+    this.expandedUpdates = /** @type ProjectStructureUpdate[] */ []
     this.origin = origin
   }
 
@@ -374,8 +394,11 @@ class SyncUpdateExpander {
     return !matchedExpectedFile
   }
 
+  /**
+   * @param {Update} update
+   */
   async expandUpdate(update) {
-    if (update.resyncProjectStructure != null) {
+    if ('resyncProjectStructure' in update) {
       logger.debug(
         { projectId: this.projectId, update },
         'expanding resyncProjectStructure update'
@@ -441,12 +464,13 @@ class SyncUpdateExpander {
         expectedBinaryFiles,
         persistedBinaryFiles
       )
-    } else if (update.resyncDocContent != null) {
+      this.queueSetMetadataOpsForLinkedFiles(update)
+    } else if ('resyncDocContent' in update) {
       logger.debug(
         { projectId: this.projectId, update },
         'expanding resyncDocContent update'
       )
-      await this.queueTextOpForOutOfSyncContents(update)
+      await this.expandResyncDocContentUpdate(update)
     } else {
       this.expandedUpdates.push(update)
     }
@@ -456,6 +480,10 @@ class SyncUpdateExpander {
     return this.expandedUpdates
   }
 
+  /**
+   * @param {Entity[]} expectedFiles
+   * @param {{ path: string }[]} persistedFiles
+   */
   queueRemoveOpsForUnexpectedFiles(update, expectedFiles, persistedFiles) {
     const unexpectedFiles = _.differenceBy(
       persistedFiles,
@@ -479,6 +507,10 @@ class SyncUpdateExpander {
     }
   }
 
+  /**
+   * @param {Entity[]} expectedFiles
+   * @param {{ path: string }[]} persistedFiles
+   */
   queueAddOpsForMissingFiles(update, expectedFiles, persistedFiles) {
     const missingFiles = _.differenceBy(expectedFiles, persistedFiles, 'path')
     for (const entity of missingFiles) {
@@ -491,7 +523,7 @@ class SyncUpdateExpander {
         },
       }
 
-      if (entity.doc != null) {
+      if ('doc' in entity) {
         update.doc = entity.doc
         update.docLines = ''
         // we have to create a dummy entry here because later we will need the content in the diff computation
@@ -499,11 +531,54 @@ class SyncUpdateExpander {
       } else {
         update.file = entity.file
         update.url = entity.url
+        update.hash = entity._hash
+        update.metadata = entity.metadata
       }
 
       this.expandedUpdates.push(update)
       Metrics.inc('project_history_resync_operation', 1, {
         status: 'add missing file',
+      })
+    }
+  }
+
+  queueSetMetadataOpsForLinkedFiles(update) {
+    const allEntities = update.resyncProjectStructure.docs.concat(
+      update.resyncProjectStructure.files
+    )
+    for (const file of allEntities) {
+      const pathname = UpdateTranslator._convertPathname(file.path)
+      const matchingAddFileOperation = this.expandedUpdates.some(
+        // Look for an addFile operation that already syncs the metadata.
+        u => u.pathname === pathname && u.metadata === file.metadata
+      )
+      if (matchingAddFileOperation) continue
+      const metaData = this.files[pathname].getMetadata()
+
+      let shouldUpdate = false
+      if (file.metadata) {
+        // check for in place update of linked-file
+        shouldUpdate = Object.entries(file.metadata).some(
+          ([k, v]) => metaData[k] !== v
+        )
+      } else if (metaData.provider) {
+        // overwritten by non-linked-file with same hash
+        // or overwritten by doc
+        shouldUpdate = true
+      }
+      if (!shouldUpdate) continue
+
+      this.expandedUpdates.push({
+        pathname,
+        meta: {
+          resync: true,
+          origin: this.origin,
+          ts: update.meta.ts,
+        },
+        metadata: file.metadata || {},
+      })
+      Metrics.inc('project_history_resync_operation', 1, {
+        status: 'update metadata',
       })
     }
   }
@@ -545,6 +620,8 @@ class SyncUpdateExpander {
         },
         file: entity.file,
         url: entity.url,
+        hash: entity._hash,
+        metadata: entity.metadata,
       }
       this.expandedUpdates.push(addUpdate)
       Metrics.inc('project_history_resync_operation', 1, {
@@ -553,10 +630,16 @@ class SyncUpdateExpander {
     }
   }
 
-  async queueTextOpForOutOfSyncContents(update) {
+  /**
+   * Expand a resyncDocContentUpdate
+   *
+   * @param {ResyncDocContentUpdate} update
+   */
+  async expandResyncDocContentUpdate(update) {
     const pathname = UpdateTranslator._convertPathname(update.path)
     const snapshotFile = this.files[pathname]
     const expectedFile = update.resyncDocContent
+    const expectedContent = expectedFile.content
 
     if (!snapshotFile) {
       throw new OError('unrecognised file: not in snapshot')
@@ -567,63 +650,97 @@ class SyncUpdateExpander {
     // Note getHash() returns the hash only when the persisted file has
     // no changes in the snapshot, the hash is null if there are changes
     // that apply to it.
-    const persistedHash =
-      typeof snapshotFile.getHash === 'function'
-        ? snapshotFile.getHash()
-        : undefined
+    let hashesMatch = false
+    const persistedHash = snapshotFile.getHash()
     if (persistedHash != null) {
-      const expectedHash = HashManager._getBlobHashFromString(
-        expectedFile.content
-      )
+      const expectedHash = HashManager._getBlobHashFromString(expectedContent)
       if (persistedHash === expectedHash) {
         logger.debug(
           { projectId: this.projectId, persistedHash, expectedHash },
           'skipping diff because hashes match and persisted file has no ops'
         )
-        return
+        hashesMatch = true
       }
     } else {
       logger.debug('cannot compare hashes, will retrieve content')
     }
 
-    const expectedContent = update.resyncDocContent.content
-
-    let persistedContent
     // compute the difference between the expected and persisted content
-    if (snapshotFile.load != null) {
-      const historyId = await WebApiManager.promises.getHistoryId(
-        this.projectId
-      )
-      const file = await snapshotFile.load(
-        'eager',
-        HistoryStoreManager.getBlobStore(historyId)
-      )
-      persistedContent = file.getContent()
-    } else if (snapshotFile.content != null) {
-      // use dummy content from queueAddOpsForMissingFiles for added missing files
-      persistedContent = snapshotFile.content
-    } else {
-      throw new OError('unrecognised file')
+    const historyId = await WebApiManager.promises.getHistoryId(this.projectId)
+    const file = await snapshotFile.load(
+      'eager',
+      HistoryStoreManager.getBlobStore(historyId)
+    )
+    const persistedContent = file.getContent()
+    if (persistedContent == null) {
+      // This should not happen given that we loaded the file eagerly. We could
+      // probably refine the types in overleaf-editor-core so that this check
+      // wouldn't be necessary.
+      throw new Error('File was not properly loaded')
     }
 
-    let op
+    if (!hashesMatch) {
+      const expandedUpdate = await this.queueUpdateForOutOfSyncContent(
+        update,
+        pathname,
+        persistedContent,
+        expectedContent
+      )
+      if (expandedUpdate != null) {
+        // Adjust the ranges for the changes that have been made to the content
+        for (const op of expandedUpdate.op) {
+          if (isInsert(op)) {
+            file.getComments().applyInsert(new Range(op.p, op.i.length))
+            file.getTrackedChanges().applyInsert(op.p, op.i)
+          } else if (isDelete(op)) {
+            file.getComments().applyDelete(new Range(op.p, op.d.length))
+            file.getTrackedChanges().applyDelete(op.p, op.d.length)
+          }
+        }
+      }
+    }
+
+    const persistedComments = file.getComments().toArray()
+    await this.queueUpdatesForOutOfSyncComments(
+      update,
+      pathname,
+      persistedComments
+    )
+
+    const persistedChanges = file.getTrackedChanges().asSorted()
+    await this.queueUpdatesForOutOfSyncTrackedChanges(
+      update,
+      pathname,
+      persistedChanges
+    )
+  }
+
+  /**
+   * Queue update for out of sync content
+   *
+   * @param {ResyncDocContentUpdate} update
+   * @param {string} pathname
+   * @param {string} persistedContent
+   * @param {string} expectedContent
+   */
+  async queueUpdateForOutOfSyncContent(
+    update,
+    pathname,
+    persistedContent,
+    expectedContent
+  ) {
     logger.debug(
       { projectId: this.projectId, persistedContent, expectedContent },
       'diffing doc contents'
     )
-    try {
-      op = UpdateCompressor.diffAsShareJsOps(persistedContent, expectedContent)
-    } catch (error) {
-      throw OError.tag(error, 'error from diffAsShareJsOps', {
-        projectId: this.projectId,
-        persistedContent,
-        expectedContent,
-      })
-    }
+    const op = UpdateCompressor.diffAsShareJsOps(
+      persistedContent,
+      expectedContent
+    )
     if (op.length === 0) {
-      return
+      return null
     }
-    update = {
+    const expandedUpdate = {
       doc: update.doc,
       op,
       meta: {
@@ -638,10 +755,338 @@ class SyncUpdateExpander {
       { projectId: this.projectId, diffCount: op.length },
       'doc contents differ'
     )
-    this.expandedUpdates.push(update)
+    this.expandedUpdates.push(expandedUpdate)
     Metrics.inc('project_history_resync_operation', 1, {
       status: 'update text file contents',
     })
+    return expandedUpdate
+  }
+
+  /**
+   * Queue updates for out of sync comments
+   *
+   * @param {ResyncDocContentUpdate} update
+   * @param {string} pathname
+   * @param {HistoryComment[]} persistedComments
+   */
+  async queueUpdatesForOutOfSyncComments(update, pathname, persistedComments) {
+    const expectedContent = update.resyncDocContent.content
+    const expectedComments = update.resyncDocContent.ranges?.comments ?? []
+    const resolvedCommentIds = new Set(
+      update.resyncDocContent.resolvedCommentIds ?? []
+    )
+    const expectedCommentsById = new Map(
+      expectedComments.map(comment => [comment.id, comment])
+    )
+    const persistedCommentsById = new Map(
+      persistedComments.map(comment => [comment.id, comment])
+    )
+
+    // Delete any persisted comment that is not in the expected comment list.
+    for (const persistedComment of persistedComments) {
+      if (!expectedCommentsById.has(persistedComment.id)) {
+        this.expandedUpdates.push({
+          pathname,
+          deleteComment: persistedComment.id,
+          meta: {
+            resync: true,
+            origin: this.origin,
+            ts: update.meta.ts,
+          },
+        })
+      }
+    }
+
+    for (const expectedComment of expectedComments) {
+      const persistedComment = persistedCommentsById.get(expectedComment.id)
+      const expectedCommentResolved = resolvedCommentIds.has(expectedComment.id)
+      if (
+        persistedComment != null &&
+        commentRangesAreInSync(persistedComment, expectedComment)
+      ) {
+        if (expectedCommentResolved === persistedComment.resolved) {
+          // Both comments are identical; do nothing
+        } else {
+          // Only the resolved state differs
+          this.expandedUpdates.push({
+            pathname,
+            commentId: expectedComment.id,
+            resolved: expectedCommentResolved,
+            meta: {
+              resync: true,
+              origin: this.origin,
+              ts: update.meta.ts,
+            },
+          })
+        }
+      } else {
+        const op = { ...expectedComment.op, resolved: expectedCommentResolved }
+        // New comment or ranges differ
+        this.expandedUpdates.push({
+          doc: update.doc,
+          op: [op],
+          meta: {
+            resync: true,
+            origin: this.origin,
+            ts: update.meta.ts,
+            pathname,
+            doc_length: expectedContent.length,
+          },
+        })
+      }
+    }
+  }
+
+  /**
+   * Queue updates for out of sync tracked changes
+   *
+   * @param {ResyncDocContentUpdate} update
+   * @param {string} pathname
+   * @param {readonly HistoryTrackedChange[]} persistedChanges
+   */
+  async queueUpdatesForOutOfSyncTrackedChanges(
+    update,
+    pathname,
+    persistedChanges
+  ) {
+    const expectedChanges = update.resyncDocContent.ranges?.changes ?? []
+    const expectedContent = update.resyncDocContent.content
+
+    /**
+     * A cursor on the expected content
+     */
+    let cursor = 0
+
+    /**
+     * The persisted tracking at cursor
+     *
+     * @type {TrackingDirective}
+     */
+    let persistedTracking = { type: 'none' }
+
+    /**
+     * The expected tracking at cursor
+     *
+     * @type {TrackingDirective}
+     */
+    let expectedTracking = { type: 'none' }
+
+    /**
+     * The retain ops for the update
+     *
+     * @type {RetainOp[]}
+     */
+    const ops = []
+
+    /**
+     * The retain op being built
+     *
+     * @type {RetainOp | null}
+     */
+    let currentOp = null
+
+    for (const transition of getTrackedChangesTransitions(
+      persistedChanges,
+      expectedChanges,
+      expectedContent.length
+    )) {
+      if (transition.pos > cursor) {
+        // The next transition will move the cursor. Decide what to do with the interval.
+        if (trackingDirectivesEqual(expectedTracking, persistedTracking)) {
+          // Expected tracking and persisted tracking are in sync. Emit the
+          // current op and skip this interval.
+          if (currentOp != null) {
+            ops.push(currentOp)
+            currentOp = null
+          }
+        } else {
+          // Expected tracking and persisted tracking are different.
+          const retainedText = expectedContent.slice(cursor, transition.pos)
+          if (
+            currentOp?.tracking != null &&
+            trackingDirectivesEqual(expectedTracking, currentOp.tracking)
+          ) {
+            // The current op has the right tracking. Extend it.
+            currentOp.r += retainedText
+          } else {
+            // The current op doesn't have the right tracking. Emit the current
+            // op and start a new one.
+            if (currentOp != null) {
+              ops.push(currentOp)
+            }
+            currentOp = {
+              r: retainedText,
+              p: cursor,
+              tracking: expectedTracking,
+            }
+          }
+        }
+
+        // Advance cursor
+        cursor = transition.pos
+      }
+
+      // Update the expected and persisted tracking
+      if (transition.stage === 'persisted') {
+        persistedTracking = transition.tracking
+      } else {
+        expectedTracking = transition.tracking
+      }
+    }
+
+    // Emit the last op
+    if (currentOp != null) {
+      ops.push(currentOp)
+    }
+
+    if (ops.length > 0) {
+      this.expandedUpdates.push({
+        doc: update.doc,
+        op: ops,
+        meta: {
+          resync: true,
+          origin: this.origin,
+          ts: update.meta.ts,
+          pathname,
+          doc_length: expectedContent.length,
+        },
+      })
+    }
+  }
+}
+
+/**
+ * Compares the ranges in the persisted and expected comments
+ *
+ * @param {HistoryComment} persistedComment
+ * @param {Comment} expectedComment
+ */
+function commentRangesAreInSync(persistedComment, expectedComment) {
+  const expectedPos = expectedComment.op.hpos ?? expectedComment.op.p
+  const expectedLength = expectedComment.op.hlen ?? expectedComment.op.c.length
+  if (expectedLength === 0) {
+    // A zero length comment from RangesManager is a detached comment in history
+    return persistedComment.ranges.length === 0
+  }
+
+  if (persistedComment.ranges.length !== 1) {
+    // The editor only supports single range comments
+    return false
+  }
+  const persistedRange = persistedComment.ranges[0]
+  return (
+    persistedRange.pos === expectedPos &&
+    persistedRange.length === expectedLength
+  )
+}
+
+/**
+ * Iterates through expected tracked changes and persisted tracked changes and
+ * returns all transitions, sorted by position.
+ *
+ * @param {readonly HistoryTrackedChange[]} persistedChanges
+ * @param {TrackedChange[]} expectedChanges
+ * @param {number} docLength
+ */
+function getTrackedChangesTransitions(
+  persistedChanges,
+  expectedChanges,
+  docLength
+) {
+  /** @type {TrackedChangeTransition[]} */
+  const transitions = []
+
+  for (const change of persistedChanges) {
+    transitions.push({
+      stage: 'persisted',
+      pos: change.range.start,
+      tracking: {
+        type: change.tracking.type,
+        userId: change.tracking.userId,
+        ts: change.tracking.ts.toISOString(),
+      },
+    })
+    transitions.push({
+      stage: 'persisted',
+      pos: change.range.end,
+      tracking: { type: 'none' },
+    })
+  }
+
+  for (const change of expectedChanges) {
+    const op = change.op
+    const pos = op.hpos ?? op.p
+    if (isInsert(op)) {
+      transitions.push({
+        stage: 'expected',
+        pos,
+        tracking: {
+          type: 'insert',
+          userId: change.metadata.user_id,
+          ts: change.metadata.ts,
+        },
+      })
+      transitions.push({
+        stage: 'expected',
+        pos: pos + op.i.length,
+        tracking: { type: 'none' },
+      })
+    } else {
+      transitions.push({
+        stage: 'expected',
+        pos,
+        tracking: {
+          type: 'delete',
+          userId: change.metadata.user_id,
+          ts: change.metadata.ts,
+        },
+      })
+      transitions.push({
+        stage: 'expected',
+        pos: pos + op.d.length,
+        tracking: { type: 'none' },
+      })
+    }
+  }
+
+  transitions.push({
+    stage: 'expected',
+    pos: docLength,
+    tracking: { type: 'none' },
+  })
+
+  transitions.sort((a, b) => {
+    if (a.pos < b.pos) {
+      return -1
+    } else if (a.pos > b.pos) {
+      return 1
+    } else if (a.tracking.type === 'none' && b.tracking.type !== 'none') {
+      // none type comes before other types so that it can be overridden at the
+      // same position
+      return -1
+    } else if (a.tracking.type !== 'none' && b.tracking.type === 'none') {
+      // none type comes before other types so that it can be overridden at the
+      // same position
+      return 1
+    } else {
+      return 0
+    }
+  })
+
+  return transitions
+}
+
+/**
+ * Returns true if both tracking directives are equal
+ *
+ * @param {TrackingDirective} a
+ * @param {TrackingDirective} b
+ */
+function trackingDirectivesEqual(a, b) {
+  if (a.type === 'none') {
+    return b.type === 'none'
+  } else {
+    return a.type === b.type && a.userId === b.userId && a.ts === b.ts
   }
 }
 

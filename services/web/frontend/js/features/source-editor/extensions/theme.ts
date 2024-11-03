@@ -2,6 +2,7 @@ import { EditorView } from '@codemirror/view'
 import { Annotation, Compartment, TransactionSpec } from '@codemirror/state'
 import { syntaxHighlighting } from '@codemirror/language'
 import { classHighlighter } from './class-highlighter'
+import classNames from 'classnames'
 
 const optionsThemeConf = new Compartment()
 const selectedThemeConf = new Compartment()
@@ -16,6 +17,7 @@ type Options = {
   fontFamily: FontFamily
   lineHeight: LineHeight
   overallTheme: OverallTheme
+  bootstrapVersion: 3 | 5
 }
 
 export const theme = (options: Options) => [
@@ -67,13 +69,17 @@ const createThemeFromOptions = ({
   fontFamily = 'monaco',
   lineHeight = 'normal',
   overallTheme = '',
+  bootstrapVersion = 3,
 }: Options) => {
   /**
    * Theme styles that depend on settings.
    */
   return [
     EditorView.editorAttributes.of({
-      class: overallTheme === '' ? 'overall-theme-dark' : 'overall-theme-light',
+      class: classNames(
+        overallTheme === '' ? 'overall-theme-dark' : 'overall-theme-light',
+        'bootstrap-' + bootstrapVersion
+      ),
       style: Object.entries({
         '--font-size': `${fontSize}px`,
         '--source-font-family': fontFamilies[fontFamily]?.join(', '),
@@ -125,6 +131,10 @@ const baseTheme = EditorView.baseTheme({
   '.cm-lineNumbers': {
     fontFamily: 'var(--source-font-family)',
   },
+  // double the specificity to override the underline squiggle
+  '.cm-lintRange.cm-lintRange': {
+    backgroundImage: 'none',
+  },
   // use a background color for lint error ranges
   '.cm-lintRange-error': {
     padding: 'var(--half-leading, 0) 0',
@@ -154,6 +164,15 @@ const baseTheme = EditorView.baseTheme({
     borderColor: 'rgba(0, 0, 0, 0.3)',
     boxShadow: '0 1px 1px rgba(255, 255, 255, 0.7)',
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  '.cm-diagnosticSource': {
+    display: 'none',
+  },
+  '.ol-cm-diagnostic-actions': {
+    marginTop: '4px',
+  },
+  '.cm-diagnostic:last-of-type .ol-cm-diagnostic-actions': {
+    marginBottom: '4px',
   },
 })
 

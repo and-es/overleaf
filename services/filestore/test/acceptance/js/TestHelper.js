@@ -1,5 +1,6 @@
 const streamifier = require('streamifier')
 const fetch = require('node-fetch')
+const ObjectPersistor = require('@overleaf/object-persistor')
 
 const { expect } = require('chai')
 
@@ -7,6 +8,7 @@ module.exports = {
   uploadStringToPersistor,
   getStringFromPersistor,
   expectPersistorToHaveFile,
+  expectPersistorToHaveSomeFile,
   expectPersistorNotToHaveFile,
   streamToString,
   getMetric,
@@ -15,10 +17,14 @@ module.exports = {
 async function getMetric(filestoreUrl, metric) {
   const res = await fetch(`${filestoreUrl}/metrics`)
   expect(res.status).to.equal(200)
-  const metricRegex = new RegExp(`^${metric}{[^}]+} ([0-9]+)$`, 'm')
+  const metricRegex = new RegExp(`^${metric}{[^}]+} ([0-9]+)$`, 'gm')
   const body = await res.text()
-  const found = metricRegex.exec(body)
-  return parseInt(found ? found[1] : 0) || 0
+  let v = 0
+  // Sum up size="lt-128KiB" and size="gte-128KiB"
+  for (const [, found] of body.matchAll(metricRegex)) {
+    v += parseInt(found, 10) || 0
+  }
+  return v
 }
 
 function streamToString(stream) {
@@ -38,11 +44,30 @@ async function uploadStringToPersistor(persistor, bucket, key, content) {
 
 async function getStringFromPersistor(persistor, bucket, key) {
   const stream = await persistor.getObjectStream(bucket, key, {})
-  return streamToString(stream)
+  return await streamToString(stream)
 }
 
 async function expectPersistorToHaveFile(persistor, bucket, key, content) {
   const foundContent = await getStringFromPersistor(persistor, bucket, key)
+  expect(foundContent).to.equal(content)
+}
+
+async function expectPersistorToHaveSomeFile(persistor, bucket, keys, content) {
+  let foundContent
+  for (const key of keys) {
+    try {
+      foundContent = await getStringFromPersistor(persistor, bucket, key)
+      break
+    } catch (err) {
+      if (err instanceof ObjectPersistor.Errors.NotFoundError) {
+        continue
+      }
+      throw err
+    }
+  }
+  if (foundContent === undefined) {
+    expect.fail(`Could not find any of the specified keys: ${keys}`)
+  }
   expect(foundContent).to.equal(content)
 }
 

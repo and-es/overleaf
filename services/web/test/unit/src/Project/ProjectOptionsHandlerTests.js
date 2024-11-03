@@ -17,7 +17,7 @@ const { expect } = require('chai')
 const modulePath =
   '../../../../app/src/Features/Project/ProjectOptionsHandler.js'
 const SandboxedModule = require('sandboxed-module')
-const { ObjectId } = require('mongodb')
+const { ObjectId } = require('mongodb-legacy')
 
 describe('ProjectOptionsHandler', function () {
   const projectId = '4eecaffcbffa66588e000008'
@@ -191,7 +191,7 @@ describe('ProjectOptionsHandler', function () {
 
   describe('setting the rangesSupportEnabled', function () {
     it('should perform and update on mongo', async function () {
-      await this.handler.promises.enableHistoryRangesSupport(projectId)
+      await this.handler.promises.setHistoryRangesSupport(projectId, true)
       sinon.assert.calledWith(
         this.db.projects.updateOne,
         { _id: new ObjectId(projectId) },
@@ -205,8 +205,8 @@ describe('ProjectOptionsHandler', function () {
       })
 
       it('should be rejected', async function () {
-        expect(this.handler.promises.enableHistoryRangesSupport(projectId)).to
-          .be.rejected
+        expect(this.handler.promises.setHistoryRangesSupport(projectId, true))
+          .to.be.rejected
       })
     })
   })

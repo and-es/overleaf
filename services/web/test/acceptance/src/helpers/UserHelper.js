@@ -8,7 +8,7 @@ const UserUpdater = require('../../../../app/src/Features/User/UserUpdater')
 const moment = require('moment')
 const fetch = require('node-fetch')
 const { db } = require('../../../../app/src/infrastructure/mongodb')
-const { ObjectId } = require('mongodb')
+const { ObjectId } = require('mongodb-legacy')
 const {
   UserAuditLogEntry,
 } = require('../../../../app/src/models/UserAuditLogEntry')
@@ -157,6 +157,22 @@ class UserHelper {
     return JSON.parse(body)
   }
 
+  async getSplitTestAssignment(splitTestName) {
+    const response = await this.fetch(
+      `/dev/split_test/get_assignment?splitTestName=${splitTestName}`
+    )
+    const body = await response.text()
+
+    if (response.status !== 200) {
+      throw new Error(
+        `get split test assignment failed: status=${response.status} body=${JSON.stringify(
+          body
+        )}`
+      )
+    }
+    return JSON.parse(body)
+  }
+
   async getEmailConfirmationCode() {
     const session = await this.getSession()
 
@@ -201,7 +217,7 @@ class UserHelper {
    * @returns {string} baseUrl
    */
   static baseUrl() {
-    return `http://${process.env.HTTP_TEST_HOST || 'localhost'}:23000`
+    return `http://${process.env.HTTP_TEST_HOST || '127.0.0.1'}:23000`
   }
 
   /**
@@ -283,7 +299,7 @@ class UserHelper {
    * @param {string} userData.password
    * @returns {UserHelper}
    */
-  static async loginUser(userData) {
+  static async loginUser(userData, expectedRedirect) {
     if (!userData || !userData.email || !userData.password) {
       throw new Error('email and password required')
     }
@@ -311,7 +327,11 @@ class UserHelper {
     }
 
     const body = await response.json()
-    if (body.redir !== '/project') {
+    if (
+      body.redir !== '/project' &&
+      expectedRedirect &&
+      body.redir !== expectedRedirect
+    ) {
       const error = new Error(
         `login should redirect to /project: status=${
           response.status

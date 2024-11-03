@@ -20,7 +20,9 @@ const {
 } = require('../Errors/Errors')
 const FeaturesHelper = require('./FeaturesHelper')
 
-/** @typedef {import("../../../../types/project/dashboard/subscription").Subscription} Subscription */
+/**
+ * @import { Subscription } from "../../../../types/project/dashboard/subscription"
+ */
 
 function buildHostedLink(type) {
   return `/user/subscription/recurly/${type}`
@@ -66,7 +68,11 @@ async function getRedirectToHostedPage(userId, pageType) {
   ].join('')
 }
 
-async function buildUsersSubscriptionViewModel(user) {
+async function buildUsersSubscriptionViewModel(
+  user,
+  locale = 'en',
+  formatPrice = SubscriptionFormatters.formatPriceDefault
+) {
   let {
     personalSubscription,
     memberGroupSubscriptions,
@@ -264,6 +270,7 @@ async function buildUsersSubscriptionViewModel(user) {
       billingDetailsLink: buildHostedLink('billing-details'),
       accountManagementLink: buildHostedLink('account-management'),
       additionalLicenses,
+      addOns: recurlySubscription.subscription_add_ons || [],
       totalLicenses,
       nextPaymentDueAt: SubscriptionFormatters.formatDate(
         recurlySubscription.current_period_ends_at
@@ -312,19 +319,19 @@ async function buildUsersSubscriptionViewModel(user) {
       const pendingSubscriptionTax =
         personalSubscription.recurly.taxRate *
         recurlySubscription.pending_subscription.unit_amount_in_cents
-      personalSubscription.recurly.displayPrice =
-        SubscriptionFormatters.formatPrice(
-          recurlySubscription.pending_subscription.unit_amount_in_cents +
-            pendingAddOnPrice +
-            pendingAddOnTax +
-            pendingSubscriptionTax,
-          recurlySubscription.currency
-        )
-      personalSubscription.recurly.currentPlanDisplayPrice =
-        SubscriptionFormatters.formatPrice(
-          recurlySubscription.unit_amount_in_cents + addOnPrice + tax,
-          recurlySubscription.currency
-        )
+      personalSubscription.recurly.displayPrice = formatPrice(
+        recurlySubscription.pending_subscription.unit_amount_in_cents +
+          pendingAddOnPrice +
+          pendingAddOnTax +
+          pendingSubscriptionTax,
+        recurlySubscription.currency,
+        locale
+      )
+      personalSubscription.recurly.currentPlanDisplayPrice = formatPrice(
+        recurlySubscription.unit_amount_in_cents + addOnPrice + tax,
+        recurlySubscription.currency,
+        locale
+      )
       const pendingTotalLicenses =
         (pendingPlan.membersLimit || 0) + pendingAdditionalLicenses
       personalSubscription.recurly.pendingAdditionalLicenses =
@@ -332,11 +339,11 @@ async function buildUsersSubscriptionViewModel(user) {
       personalSubscription.recurly.pendingTotalLicenses = pendingTotalLicenses
       personalSubscription.pendingPlan = pendingPlan
     } else {
-      personalSubscription.recurly.displayPrice =
-        SubscriptionFormatters.formatPrice(
-          recurlySubscription.unit_amount_in_cents + addOnPrice + tax,
-          recurlySubscription.currency
-        )
+      personalSubscription.recurly.displayPrice = formatPrice(
+        recurlySubscription.unit_amount_in_cents + addOnPrice + tax,
+        recurlySubscription.currency,
+        locale
+      )
     }
   }
 

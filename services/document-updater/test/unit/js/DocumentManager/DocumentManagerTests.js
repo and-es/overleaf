@@ -22,6 +22,7 @@ describe('DocumentManager', function () {
         putDocInMemory: sinon.stub().resolves(),
         removeDocFromMemory: sinon.stub().resolves(),
         renameDoc: sinon.stub().resolves(),
+        updateCommentState: sinon.stub().resolves(),
         updateDocument: sinon.stub().resolves(),
       },
     }
@@ -73,6 +74,7 @@ describe('DocumentManager', function () {
     this.lines = ['one', 'two', 'three']
     this.version = 42
     this.ranges = { comments: 'mock', entries: 'mock' }
+    this.resolvedCommentIds = ['comment-1']
     this.pathname = '/a/b/c.tex'
     this.unflushedTime = Date.now()
     this.lastUpdatedAt = Date.now()
@@ -170,17 +172,15 @@ describe('DocumentManager', function () {
       })
 
       it('should write the doc lines to the persistence layer', function () {
-        this.PersistenceManager.promises.setDoc
-          .calledWith(
-            this.project_id,
-            this.doc_id,
-            this.lines,
-            this.version,
-            this.ranges,
-            this.lastUpdatedAt,
-            this.lastUpdatedBy
-          )
-          .should.equal(true)
+        this.PersistenceManager.promises.setDoc.should.have.been.calledWith(
+          this.project_id,
+          this.doc_id,
+          this.lines,
+          this.version,
+          this.ranges,
+          this.lastUpdatedAt,
+          this.lastUpdatedBy
+        )
       })
     })
 
@@ -298,6 +298,7 @@ describe('DocumentManager', function () {
           lines: this.lines,
           version: this.version,
           ranges: this.ranges,
+          resolvedCommentIds: this.resolvedCommentIds,
           pathname: this.pathname,
           projectHistoryId: this.projectHistoryId,
           unflushedTime: this.unflushedTime,
@@ -322,6 +323,7 @@ describe('DocumentManager', function () {
           lines: this.lines,
           version: this.version,
           ranges: this.ranges,
+          resolvedCommentIds: this.resolvedCommentIds,
           pathname: this.pathname,
           projectHistoryId: this.projectHistoryId,
           unflushedTime: this.unflushedTime,
@@ -344,6 +346,7 @@ describe('DocumentManager', function () {
           lines: this.lines,
           version: this.version,
           ranges: this.ranges,
+          resolvedCommentIds: this.resolvedCommentIds,
           pathname: this.pathname,
           projectHistoryId: this.projectHistoryId,
           historyRangesSupport: this.historyRangesSupport,
@@ -374,6 +377,7 @@ describe('DocumentManager', function () {
             this.lines,
             this.version,
             this.ranges,
+            this.resolvedCommentIds,
             this.pathname,
             this.projectHistoryId,
             this.historyRangesSupport
@@ -386,6 +390,7 @@ describe('DocumentManager', function () {
           lines: this.lines,
           version: this.version,
           ranges: this.ranges,
+          resolvedCommentIds: this.resolvedCommentIds,
           pathname: this.pathname,
           projectHistoryId: this.projectHistoryId,
           unflushedTime: null,
@@ -409,6 +414,7 @@ describe('DocumentManager', function () {
           lines: this.beforeLines,
           version: this.version,
           ranges: this.ranges,
+          resolvedCommentIds: this.resolvedCommentIds,
           pathname: this.pathname,
           projectHistoryId: this.projectHistoryId,
           unflushedTime: this.unflushedTime,
@@ -428,6 +434,7 @@ describe('DocumentManager', function () {
             lines: this.beforeLines,
             version: this.version,
             ranges: this.ranges,
+            resolvedCommentIds: this.resolvedCommentIds,
             pathname: this.pathname,
             projectHistoryId: this.projectHistoryId,
             unflushedTime: this.unflushedTime,
@@ -684,6 +691,8 @@ describe('DocumentManager', function () {
 
       it('should apply the accept change to the ranges', function () {
         this.RangesManager.acceptChanges.should.have.been.calledWith(
+          this.project_id,
+          this.doc_id,
           [this.change_id],
           this.ranges
         )
@@ -715,7 +724,12 @@ describe('DocumentManager', function () {
 
       it('should apply the accept change to the ranges', function () {
         this.RangesManager.acceptChanges
-          .calledWith(this.change_ids, this.ranges)
+          .calledWith(
+            this.project_id,
+            this.doc_id,
+            this.change_ids,
+            this.ranges
+          )
           .should.equal(true)
       })
     })
@@ -746,12 +760,14 @@ describe('DocumentManager', function () {
       this.version = 34
       this.lines = ['original', 'lines']
       this.ranges = { comments: ['one', 'two', 'three'] }
+      this.resolvedCommentIds = ['comment1']
       this.updated_ranges = { comments: ['one', 'three'] }
       this.historyRangesSupport = true
       this.DocumentManager.promises.getDoc = sinon.stub().resolves({
         lines: this.lines,
         version: this.version,
         ranges: this.ranges,
+        resolvedCommentIds: this.resolvedCommentIds,
         pathname: this.pathname,
         projectHistoryId: this.projectHistoryId,
         unflushedTime: Date.now() - 1e9,
@@ -795,6 +811,14 @@ describe('DocumentManager', function () {
             {}
           )
           .should.equal(true)
+      })
+
+      it('should unset the comment resolved state', function () {
+        this.RedisManager.promises.updateCommentState.should.have.been.calledWith(
+          this.doc_id,
+          this.comment_id,
+          false
+        )
       })
 
       it('should queue the delete comment operation', function () {
@@ -985,6 +1009,7 @@ describe('DocumentManager', function () {
           lines: this.lines,
           version: this.version,
           ranges: this.ranges,
+          resolvedCommentIds: this.resolvedCommentIds,
           pathname: this.pathname,
           projectHistoryId: this.projectHistoryId,
           historyRangesSupport: this.historyRangesSupport,
@@ -1010,6 +1035,7 @@ describe('DocumentManager', function () {
             this.doc_id,
             this.lines,
             this.ranges,
+            this.resolvedCommentIds,
             this.version,
             this.pathnameFromProjectStructureUpdate,
             this.historyRangesSupport
@@ -1026,6 +1052,7 @@ describe('DocumentManager', function () {
           lines: this.lines,
           version: this.version,
           ranges: this.ranges,
+          resolvedCommentIds: this.resolvedCommentIds,
           pathname: this.pathname,
           projectHistoryId: this.projectHistoryId,
           historyRangesSupport: this.historyRangesSupport,
@@ -1057,6 +1084,50 @@ describe('DocumentManager', function () {
             this.doc_id,
             this.lines,
             this.ranges,
+            this.resolvedCommentIds,
+            this.version,
+            this.pathnameFromProjectStructureUpdate,
+            this.historyRangesSupport
+          )
+          .should.equal(true)
+      })
+    })
+
+    describe('when a doc has no ranges in docstore', function () {
+      beforeEach(async function () {
+        this.pathnameFromProjectStructureUpdate = '/foo/bar.tex'
+        this.RedisManager.promises.getDoc.resolves({})
+        this.PersistenceManager.promises.getDoc.resolves({
+          lines: this.lines,
+          version: this.version,
+          ranges: undefined,
+          resolvedCommentIds: [],
+          pathname: this.pathname,
+          projectHistoryId: this.projectHistoryId,
+          historyRangesSupport: this.historyRangesSupport,
+        })
+        await this.DocumentManager.promises.resyncDocContents(
+          this.project_id,
+          this.doc_id,
+          this.pathnameFromProjectStructureUpdate
+        )
+      })
+
+      it('gets the doc contents from web', function () {
+        this.PersistenceManager.promises.getDoc
+          .calledWith(this.project_id, this.doc_id, { peek: true })
+          .should.equal(true)
+      })
+
+      it('queues a resync doc content update with an empty ranges object', function () {
+        this.ProjectHistoryRedisManager.promises.queueResyncDocContent
+          .calledWith(
+            this.project_id,
+            this.projectHistoryId,
+            this.doc_id,
+            this.lines,
+            {},
+            [],
             this.version,
             this.pathnameFromProjectStructureUpdate,
             this.historyRangesSupport

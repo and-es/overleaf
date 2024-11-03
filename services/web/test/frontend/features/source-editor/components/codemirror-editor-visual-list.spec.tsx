@@ -1,3 +1,4 @@
+import '../../../helpers/bootstrap-3'
 import { EditorProviders } from '../../../helpers/editor-providers'
 import CodemirrorEditor from '../../../../../frontend/js/features/source-editor/components/codemirror-editor'
 import { mockScope } from '../helpers/mock-scope'
@@ -25,7 +26,6 @@ describe('<CodeMirrorEditor/> lists in Rich Text mode', function () {
   beforeEach(function () {
     window.metaAttributesCache.set('ol-preventCompileOnLoad', true)
     cy.interceptEvents()
-    cy.interceptSpelling()
   })
 
   it('creates a nested list inside an unindented list', function () {
@@ -225,5 +225,92 @@ describe('<CodeMirrorEditor/> lists in Rich Text mode', function () {
     cy.get('.cm-line').eq(0).type('{enter}baz')
 
     cy.get('.cm-content').should('have.text', [' foo', ' bazbar'].join(''))
+  })
+
+  it('handles Enter in an empty list item at the end of a top-level list', function () {
+    const content = [
+      '\\begin{itemize}',
+      '\\item foo',
+      '\\item ',
+      '\\end{itemize}',
+      '',
+    ].join('\n')
+    mountEditor(content)
+
+    cy.get('.cm-line').eq(2).click()
+    cy.focused().type('{enter}')
+
+    cy.get('.cm-content').should('have.text', [' foo'].join(''))
+  })
+
+  it('handles Enter in an empty list item at the end of a nested list', function () {
+    const content = [
+      '\\begin{itemize}',
+      '\\item foo bar',
+      '\\begin{itemize}',
+      '\\item baz',
+      '\\item ',
+      '\\end{itemize}',
+      '\\end{itemize}',
+    ].join('\n')
+    mountEditor(content)
+
+    cy.get('.cm-line').eq(3).click()
+    cy.focused().type('{enter}')
+
+    cy.get('.cm-content').should(
+      'have.text',
+      [' foo', ' bar', ' baz', ' '].join('')
+    )
+  })
+
+  it('handles Enter in an empty list item at the end of a nested list with subsequent items', function () {
+    const content = [
+      '\\begin{itemize}',
+      '\\item foo bar',
+      '\\begin{itemize}',
+      '\\item baz',
+      '\\item ',
+      '\\end{itemize}',
+      '\\item test',
+      '\\end{itemize}',
+    ].join('\n')
+    mountEditor(content)
+
+    cy.get('.cm-line').eq(3).click()
+    cy.focused().type('{enter}')
+
+    cy.get('.cm-content').should(
+      'have.text',
+      [' foo', ' bar', ' baz', ' ', ' test'].join('')
+    )
+  })
+
+  it('decorates a description list', function () {
+    const content = [
+      '\\begin{description}',
+      '\\item[foo] Bar',
+      '\\item Test',
+      '\\end{description}',
+    ].join('\n')
+    mountEditor(content)
+
+    cy.get('.cm-line').eq(1).click()
+
+    cy.get('.cm-content').should('have.text', ['foo Bar', 'Test'].join(''))
+
+    cy.get('.cm-line').eq(1).type('{Enter}baz')
+
+    cy.get('.cm-content').should(
+      'have.text',
+      ['foo Bar', 'Test', '[baz] '].join('')
+    )
+
+    cy.get('.cm-line').eq(2).type('{rightArrow}{rightArrow}Test')
+
+    cy.get('.cm-content').should(
+      'have.text',
+      ['foo Bar', 'Test', 'baz Test'].join('')
+    )
   })
 })

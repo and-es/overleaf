@@ -1,3 +1,6 @@
+import { HistoryRanges } from '../../../document-updater/app/js/types'
+import { LinkedFileData, RawOrigin } from 'overleaf-editor-core/lib/types'
+
 export type Update =
   | TextUpdate
   | AddDocUpdate
@@ -5,6 +8,15 @@ export type Update =
   | RenameUpdate
   | DeleteCommentUpdate
   | SetCommentStateUpdate
+  | SetFileMetadataOperation
+  | ResyncProjectStructureUpdate
+  | ResyncDocContentUpdate
+
+export type ProjectStructureUpdate =
+  | AddDocUpdate
+  | AddFileUpdate
+  | RenameUpdate
+  | SetFileMetadataOperation
 
 export type UpdateMeta = {
   user_id: string
@@ -13,6 +25,7 @@ export type UpdateMeta = {
   type?: string
   origin?: RawOrigin
   tc?: string
+  resync?: boolean
 }
 
 export type TextUpdate = {
@@ -33,6 +46,12 @@ export type SetCommentStateUpdate = {
   meta: UpdateMeta
 }
 
+export type SetFileMetadataOperation = {
+  pathname: string
+  meta: UpdateMeta
+  metadata: LinkedFileData | object
+}
+
 export type DeleteCommentUpdate = {
   pathname: string
   deleteComment: string
@@ -48,13 +67,16 @@ type ProjectUpdateBase = {
 
 export type AddDocUpdate = ProjectUpdateBase & {
   pathname: string
-  docLines: string[]
+  docLines: string
+  ranges?: HistoryRanges
 }
 
 export type AddFileUpdate = ProjectUpdateBase & {
   pathname: string
   file: string
   url: string
+  hash: string
+  metadata?: LinkedFileData
 }
 
 export type RenameUpdate = ProjectUpdateBase & {
@@ -62,7 +84,40 @@ export type RenameUpdate = ProjectUpdateBase & {
   new_pathname: string
 }
 
-export type Op = InsertOp | DeleteOp | CommentOp
+export type ResyncProjectStructureUpdate = {
+  resyncProjectStructure: {
+    docs: Doc[]
+    files: File[]
+  }
+  projectHistoryId: string
+  meta: {
+    ts: string
+  }
+}
+
+export type ResyncDocContentUpdate = {
+  resyncDocContent: {
+    content: string
+    version: number
+    ranges?: Ranges
+    resolvedCommentIds?: string[]
+  }
+  projectHistoryId: string
+  path: string
+  doc: string
+  meta: {
+    ts: string
+  }
+}
+
+export type Op = RetainOp | InsertOp | DeleteOp | CommentOp
+
+export type RetainOp = {
+  r: string
+  p: number
+  hpos?: number
+  tracking?: TrackingDirective
+}
 
 export type InsertOp = {
   i: string
@@ -93,26 +148,100 @@ export type CommentOp = {
   t: string
   hpos?: number
   hlen?: number
+  resolved?: boolean
 }
 
-export type UpdateWithBlob = {
-  update: Update
-  blobHash: string
-}
-
-export type RawOrigin = {
-  kind: string
+export type UpdateWithBlob<T extends Update = Update> = {
+  update: T
+  blobHashes: T extends AddDocUpdate | AddFileUpdate
+    ? {
+        file: string
+        ranges?: string
+      }
+    : never
 }
 
 export type TrackingProps = {
-  type: 'insert' | 'delete' | 'none'
+  type: 'insert' | 'delete'
   userId: string
   ts: string
 }
 
+export type TrackingDirective = TrackingProps | { type: 'none' }
+
+export type TrackingType = 'insert' | 'delete' | 'none'
+
 export type RawScanOp =
   | number
   | string
-  | { r: number; tracking?: TrackingProps }
+  | { r: number; tracking?: TrackingDirective }
   | { i: string; tracking?: TrackingProps; commentIds?: string[] }
-  | { d: number; tracking?: TrackingProps }
+  | { d: number }
+
+export type TrackedChangeSnapshot = {
+  op: {
+    p: number
+  } & ({ d: string } | { i: string })
+  metadata: {
+    ts: string
+    user_id: string
+  }
+}
+
+export type CommentSnapshot = {
+  op: {
+    p: number
+    t: string
+    c: string
+    resolved: boolean
+  }
+}
+
+export type RangesSnapshot = {
+  changes: TrackedChangeSnapshot[]
+  comments: CommentSnapshot[]
+}
+
+export type Doc = {
+  doc: string
+  path: string
+}
+
+export type File = {
+  file: string
+  url: string
+  path: string
+  _hash: string
+  metadata?: LinkedFileData
+}
+
+export type Entity = Doc | File
+
+export type Ranges = {
+  comments?: Comment[]
+  changes?: TrackedChange[]
+}
+
+export type Comment = {
+  id: string
+  op: CommentOp
+  metadata: {
+    user_id: string
+    ts: string
+  }
+}
+
+export type TrackedChange = {
+  id: string
+  op: InsertOp | DeleteOp
+  metadata: {
+    user_id: string
+    ts: string
+  }
+}
+
+export type TrackedChangeTransition = {
+  pos: number
+  tracking: TrackingDirective
+  stage: 'persisted' | 'expected'
+}

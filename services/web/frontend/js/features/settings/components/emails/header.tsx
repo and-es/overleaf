@@ -1,19 +1,19 @@
 import { useTranslation } from 'react-i18next'
 import EmailCell from './cell'
-import ColWrapper from '@/features/ui/components/bootstrap-5/wrappers/col-wrapper'
-import RowWrapper from '@/features/ui/components/bootstrap-5/wrappers/row-wrapper'
+import OLCol from '@/features/ui/components/ol/ol-col'
+import OLRow from '@/features/ui/components/ol/ol-row'
 import classnames from 'classnames'
-import { bsClassName } from '@/features/utils/bootstrap-5'
+import { bsVersion } from '@/features/utils/bootstrap-5'
 
 function Header() {
   const { t } = useTranslation()
 
   return (
     <>
-      <RowWrapper>
-        <ColWrapper
-          md={4}
-          className={bsClassName({
+      <OLRow>
+        <OLCol
+          lg={4}
+          className={bsVersion({
             bs5: 'd-none d-sm-block',
             bs3: 'hidden-xs',
           })}
@@ -21,10 +21,10 @@ function Header() {
           <EmailCell>
             <strong>{t('email')}</strong>
           </EmailCell>
-        </ColWrapper>
-        <ColWrapper
-          md={8}
-          className={bsClassName({
+        </OLCol>
+        <OLCol
+          lg={8}
+          className={bsVersion({
             bs5: 'd-none d-sm-block',
             bs3: 'hidden-xs',
           })}
@@ -32,17 +32,17 @@ function Header() {
           <EmailCell>
             <strong>{t('institution_and_role')}</strong>
           </EmailCell>
-        </ColWrapper>
-      </RowWrapper>
+        </OLCol>
+      </OLRow>
       <div
         className={classnames(
-          bsClassName({ bs5: 'd-none d-sm-block', bs3: 'hidden-xs' }),
+          bsVersion({ bs5: 'd-none d-sm-block', bs3: 'hidden-xs' }),
           'horizontal-divider'
         )}
       />
       <div
         className={classnames(
-          bsClassName({ bs5: 'd-none d-sm-block', bs3: 'hidden-xs' }),
+          bsVersion({ bs5: 'd-none d-sm-block', bs3: 'hidden-xs' }),
           'horizontal-divider'
         )}
       />
